@@ -38,10 +38,14 @@ let pinchState: {
   offsetY: number
 } | null = null
 
+// Fallback container dimensions used before the ResizeObserver fires on first mount
+const FALLBACK_CONTAINER_W = 700
+const FALLBACK_CONTAINER_H = 460
+
 // Base cell size that fits the grid snugly in the container, multiplied by user zoom scale
 const cellSize = computed(() => {
-  const w = containerW.value || 700
-  const h = containerH.value || 460
+  const w = containerW.value || FALLBACK_CONTAINER_W
+  const h = containerH.value || FALLBACK_CONTAINER_H
   const fitW = w / store.gridWidth
   const fitH = h / store.gridHeight
   const fit = Math.min(fitW, fitH)

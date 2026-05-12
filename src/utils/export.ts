@@ -297,7 +297,7 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
 
   const canvas = document.createElement('canvas')
   // Use 2x pixel ratio for crisp export on retina / high-DPI displays
-  const dpr = Math.max(2, typeof window !== 'undefined' ? (window.devicePixelRatio || 2) : 2)
+  const dpr = typeof window !== 'undefined' ? Math.max(2, window.devicePixelRatio || 2) : 2
   canvas.width = canvasWidth * dpr
   canvas.height = canvasHeight * dpr
   // Keep CSS size at logical dimensions so callers get consistent layout
