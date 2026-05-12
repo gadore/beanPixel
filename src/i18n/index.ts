@@ -28,6 +28,13 @@ export const messages = {
     exportSheetPreview: 'Pattern Preview',
     exportSheetLayout: 'Layout Chart',
     exportSheetEmptyBom: 'No beads placed yet',
+    shortcutMap: 'Keyboard shortcuts',
+    shortcutPaint: 'Switch to paint tool',
+    shortcutPick: 'Switch to pick tool',
+    shortcutToggleGrid: 'Toggle grid visibility',
+    shortcutAddLayer: 'Add a new layer',
+    shortcutClear: 'Clear the canvas',
+    shortcutExport: 'Export image / PDF',
     canvasHint: 'Zoom {zoom}% · Shift+drag to pan · Pinch to zoom · Long press to pick'
   },
   zh: {
@@ -57,6 +64,13 @@ export const messages = {
     exportSheetPreview: '图案预览',
     exportSheetLayout: '布局图',
     exportSheetEmptyBom: '当前还没有豆子',
+    shortcutMap: '快捷键',
+    shortcutPaint: '切换到绘制工具',
+    shortcutPick: '切换到取色工具',
+    shortcutToggleGrid: '切换网格显示',
+    shortcutAddLayer: '新增图层',
+    shortcutClear: '清空画布',
+    shortcutExport: '导出图片 / PDF',
     canvasHint: '缩放 {zoom}% · Shift+拖动平移 · 双指缩放 · 长按取色'
   }
 }

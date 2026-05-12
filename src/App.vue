@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/vue'
-import { ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CanvasBoard from './components/CanvasBoard.vue'
 import ThreePreview from './components/ThreePreview.vue'
@@ -21,6 +21,14 @@ const densityHeight = ref(store.gridHeight)
 
 const beadOptions: BeadSize[] = ['5mm', '2.6mm']
 const languageOptions = ['zh', 'en'] as const
+const shortcutItems = computed(() => [
+  { key: 'B', description: t('shortcutPaint') },
+  { key: 'I', description: t('shortcutPick') },
+  { key: 'G', description: t('shortcutToggleGrid') },
+  { key: 'Shift+L', description: t('shortcutAddLayer') },
+  { key: 'Shift+C', description: t('shortcutClear') },
+  { key: 'E / Shift+E', description: t('shortcutExport') }
+])
 
 function applyDensity() {
   store.setDensity(densityWidth.value, densityHeight.value)
@@ -135,6 +143,66 @@ async function importImage(event: Event) {
   URL.revokeObjectURL(imageUrl)
   input.value = ''
 }
+
+function isEditableTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null
+  if (!element) return false
+
+  return element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (isEditableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return
+
+  const key = event.key.toLowerCase()
+
+  if (key === 'b') {
+    mode.value = 'paint'
+    event.preventDefault()
+    return
+  }
+
+  if (key === 'i') {
+    mode.value = 'pick'
+    event.preventDefault()
+    return
+  }
+
+  if (key === 'g') {
+    store.showGrid = !store.showGrid
+    event.preventDefault()
+    return
+  }
+
+  if (event.shiftKey && key === 'l') {
+    store.addLayer()
+    event.preventDefault()
+    return
+  }
+
+  if (event.shiftKey && key === 'c') {
+    store.clearCanvas()
+    event.preventDefault()
+    return
+  }
+
+  if (key === 'e') {
+    if (event.shiftKey) {
+      void exportPdf()
+    } else {
+      exportPng()
+    }
+    event.preventDefault()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <template>
@@ -278,6 +346,18 @@ async function importImage(event: Event) {
           <p v-if="store.isolatedBeads.length > 0" class="mt-3 rounded bg-red-500/20 p-2 text-xs text-red-200">
             {{ t('connectivityWarning') }} ({{ store.isolatedBeads.length }})
           </p>
+        </section>
+
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 class="mb-3 text-lg font-semibold">{{ t('shortcutMap') }}</h2>
+          <ul class="space-y-2 text-sm text-slate-200">
+            <li v-for="shortcut in shortcutItems" :key="shortcut.key" class="flex items-center justify-between gap-3 rounded bg-slate-800 px-3 py-2">
+              <span>{{ shortcut.description }}</span>
+              <kbd class="rounded border border-slate-600 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-300">
+                {{ shortcut.key }}
+              </kbd>
+            </li>
+          </ul>
         </section>
 
         <section class="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
