@@ -60,9 +60,9 @@ interface EditorState {
 - [x] 图像转换 (image upload + CIEDE2000 palette quantization)
 - [x] 连通性算法 (BFS disconnected bead warning)
 - [x] 3D 预览 (Three.js layered stacked preview)
-- [ ] PDF 图纸导出
-- [ ] Mobile gestures (two-finger zoom, long-press pick)
-- [ ] Keyboard shortcut map
+- [x] PDF 图纸导出
+- [x] Mobile gestures (two-finger zoom, long-press pick)
+- [x] Keyboard shortcut map
 
 ## Stage 3 · Implementation Notes
 

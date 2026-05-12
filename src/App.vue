@@ -1,28 +1,34 @@
 <script setup lang="ts">
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/vue'
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CanvasBoard from './components/CanvasBoard.vue'
 import ThreePreview from './components/ThreePreview.vue'
 import type { BeadSize } from './types'
 import { useEditorStore } from './stores/editor'
 import { nearestPaletteColor } from './utils/color'
+import { createExportSheetCanvas } from './utils/export'
 
 const store = useEditorStore()
 const { t, locale } = useI18n()
 
 const mode = ref<'paint' | 'pick'>('paint')
+const exportingPdf = ref(false)
+const exportIncludeGuides = ref(true)
 
 const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
 
 const beadOptions: BeadSize[] = ['5mm', '2.6mm']
 const languageOptions = ['zh', 'en'] as const
-
-const colorMap = computed(() => {
-  const map = new Map(store.palette.map((item) => [item.id, item]))
-  return map
-})
+const shortcutItems = computed(() => [
+  { key: 'B', description: t('shortcutPaint') },
+  { key: 'I', description: t('shortcutPick') },
+  { key: 'G', description: t('shortcutToggleGrid') },
+  { key: 'Shift+L', description: t('shortcutAddLayer') },
+  { key: 'Shift+C', description: t('shortcutClear') },
+  { key: 'E / Shift+E', description: t('shortcutExport') }
+])
 
 function applyDensity() {
   store.setDensity(densityWidth.value, densityHeight.value)
@@ -32,37 +38,62 @@ function setLayer(layerId: string) {
   store.activeLayerId = layerId
 }
 
-function exportPng() {
-  const canvas = document.createElement('canvas')
-  const size = 24
-  canvas.width = store.gridWidth * size
-  canvas.height = store.gridHeight * size
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  ctx.fillStyle = '#0f172a'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  for (const layer of store.layers) {
-    for (let y = 0; y < store.gridHeight; y += 1) {
-      for (let x = 0; x < store.gridWidth; x += 1) {
-        const colorId = layer.grid[y]?.[x]
-        if (!colorId) continue
-
-        const color = colorMap.value.get(colorId)
-        if (!color) continue
-
-        ctx.fillStyle = color.hex
-        ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2)
-      }
+function createExportCanvas() {
+  return createExportSheetCanvas({
+    gridWidth: store.gridWidth,
+    gridHeight: store.gridHeight,
+    layers: store.layers,
+    palette: store.palette,
+    bom: store.bom,
+    beadSize: store.beadSize,
+    totalBeads: store.totalBeads,
+    includeGuides: exportIncludeGuides.value,
+    labels: {
+      title: t('exportSheetTitle'),
+      summary: t('exportSheetSummary'),
+      preview: t('exportSheetPreview'),
+      layout: t('exportSheetLayout'),
+      bom: t('bom'),
+      emptyBom: t('exportSheetEmptyBom')
     }
-  }
+  })
+}
 
+function exportPng() {
+  const canvas = createExportCanvas()
   const link = document.createElement('a')
-  link.download = 'beanpixel-export.png'
+  link.download = 'beanpixel-sheet.png'
   link.href = canvas.toDataURL('image/png')
   link.click()
+}
+
+async function exportPdf() {
+  exportingPdf.value = true
+
+  try {
+    const { jsPDF } = await import('jspdf')
+    const canvas = createExportCanvas()
+    const pdf = new jsPDF({
+      orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 12
+    const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
+    const imageWidth = canvas.width * scale
+    const imageHeight = canvas.height * scale
+    const imageX = (pageWidth - imageWidth) / 2
+    const imageY = (pageHeight - imageHeight) / 2
+
+    pdf.setFillColor(2, 6, 23)
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F')
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', imageX, imageY, imageWidth, imageHeight)
+    pdf.save('beanpixel-blueprint.pdf')
+  } finally {
+    exportingPdf.value = false
+  }
 }
 
 async function importImage(event: Event) {
@@ -112,6 +143,67 @@ async function importImage(event: Event) {
   URL.revokeObjectURL(imageUrl)
   input.value = ''
 }
+
+function isEditableTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null
+  if (!element) return false
+
+  return element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)
+}
+
+function onKeydown(event: KeyboardEvent) {
+  const hasUnsupportedModifier = event.ctrlKey || event.metaKey || event.altKey
+  if (isEditableTarget(event.target) || hasUnsupportedModifier) return
+
+  const key = event.key.toLowerCase()
+
+  if (key === 'b') {
+    mode.value = 'paint'
+    event.preventDefault()
+    return
+  }
+
+  if (key === 'i') {
+    mode.value = 'pick'
+    event.preventDefault()
+    return
+  }
+
+  if (key === 'g') {
+    store.showGrid = !store.showGrid
+    event.preventDefault()
+    return
+  }
+
+  if (event.shiftKey && key === 'l') {
+    store.addLayer()
+    event.preventDefault()
+    return
+  }
+
+  if (event.shiftKey && key === 'c') {
+    store.clearCanvas()
+    event.preventDefault()
+    return
+  }
+
+  if (key === 'e') {
+    if (event.shiftKey) {
+      void exportPdf()
+    } else {
+      exportPng()
+    }
+    event.preventDefault()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <template>
@@ -172,6 +264,9 @@ async function importImage(event: Event) {
             <label class="flex items-center gap-2">
               <input v-model="store.showGrid" type="checkbox" /> {{ t('showGrid') }}
             </label>
+            <label class="flex items-center gap-2">
+              <input v-model="exportIncludeGuides" type="checkbox" /> {{ t('exportIncludeGuides') }}
+            </label>
 
             <label class="block">{{ t('beadSize') }}</label>
             <Listbox v-model="store.beadSize">
@@ -203,8 +298,15 @@ async function importImage(event: Event) {
                 <input class="hidden" type="file" accept="image/*" @change="importImage" />
               </label>
               <button class="rounded bg-slate-800 px-2 py-1" @click="store.clearCanvas">{{ t('clear') }}</button>
-              <button class="col-span-2 rounded bg-emerald-500 px-2 py-1 font-medium text-slate-950" @click="exportPng">
+              <button class="rounded bg-emerald-500 px-2 py-1 font-medium text-slate-950" @click="exportPng">
                 {{ t('exportPng') }}
+              </button>
+              <button
+                class="rounded bg-cyan-500 px-2 py-1 font-medium text-slate-950 disabled:cursor-wait disabled:opacity-60"
+                :disabled="exportingPdf"
+                @click="exportPdf"
+              >
+                {{ exportingPdf ? t('pdfPreparing') : t('exportPdf') }}
               </button>
             </div>
           </div>
@@ -245,6 +347,18 @@ async function importImage(event: Event) {
           <p v-if="store.isolatedBeads.length > 0" class="mt-3 rounded bg-red-500/20 p-2 text-xs text-red-200">
             {{ t('connectivityWarning') }} ({{ store.isolatedBeads.length }})
           </p>
+        </section>
+
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 class="mb-3 text-lg font-semibold">{{ t('shortcutMap') }}</h2>
+          <ul class="space-y-2 text-sm text-slate-200">
+            <li v-for="shortcut in shortcutItems" :key="shortcut.key" class="flex items-center justify-between gap-3 rounded bg-slate-800 px-3 py-2">
+              <span>{{ shortcut.description }}</span>
+              <kbd class="rounded border border-slate-600 bg-slate-950 px-2 py-1 text-xs font-medium text-slate-300">
+                {{ shortcut.key }}
+              </kbd>
+            </li>
+          </ul>
         </section>
 
         <section class="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">

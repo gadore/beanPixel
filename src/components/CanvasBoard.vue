@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useEditorStore } from '../stores/editor'
 
 const props = defineProps<{
@@ -7,6 +8,7 @@ const props = defineProps<{
 }>()
 
 const store = useEditorStore()
+const { t } = useI18n()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 
 const scale = ref(1)
@@ -15,6 +17,22 @@ const offsetY = ref(0)
 const isDrawing = ref(false)
 const isPanning = ref(false)
 const lastPointer = ref({ x: 0, y: 0 })
+const touchMoved = ref(false)
+const longPressTriggered = ref(false)
+
+const LONG_PRESS_PICK_DELAY_MS = 450
+const TOUCH_DRAW_START_THRESHOLD_PX = 12
+
+let longPressTimer = 0
+let touchStartPoint = { x: 0, y: 0 }
+let pinchState: {
+  distance: number
+  centerX: number
+  centerY: number
+  scale: number
+  offsetX: number
+  offsetY: number
+} | null = null
 
 const cellSize = computed(() => Math.max(8, Math.floor((14 * scale.value * 100) / store.gridWidth) / 100))
 
@@ -103,11 +121,11 @@ function draw() {
   ctx.restore()
 }
 
-function applyAction(clientX: number, clientY: number) {
+function applyAction(clientX: number, clientY: number, mode: 'paint' | 'pick' = props.mode) {
   const point = toGridCoordinates(clientX, clientY)
   if (!point) return
 
-  if (props.mode === 'pick') {
+  if (mode === 'pick') {
     store.pickColorAt(point.x, point.y)
   } else {
     store.paintCell(point.x, point.y)
@@ -115,9 +133,46 @@ function applyAction(clientX: number, clientY: number) {
   draw()
 }
 
+function clearLongPressTimer() {
+  if (longPressTimer) {
+    window.clearTimeout(longPressTimer)
+    longPressTimer = 0
+  }
+}
+
+function clampScale(next: number) {
+  return Math.min(4, Math.max(0.4, next))
+}
+
+function getTouchDistance(first: Touch, second: Touch) {
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)
+}
+
+function getTouchCenter(first: Touch, second: Touch) {
+  return {
+    x: (first.clientX + second.clientX) / 2,
+    y: (first.clientY + second.clientY) / 2
+  }
+}
+
+function startLongPress(clientX: number, clientY: number) {
+  clearLongPressTimer()
+  longPressTriggered.value = false
+  touchStartPoint = { x: clientX, y: clientY }
+
+  longPressTimer = window.setTimeout(() => {
+    longPressTriggered.value = true
+    applyAction(clientX, clientY, 'pick')
+  }, LONG_PRESS_PICK_DELAY_MS)
+}
+
+function isTouchPointerEvent(event: PointerEvent) {
+  return event.pointerType === 'touch'
+}
+
 function onPointerDown(event: PointerEvent) {
   const canvas = canvasRef.value
-  if (!canvas) return
+  if (!canvas || isTouchPointerEvent(event)) return
 
   canvas.setPointerCapture(event.pointerId)
   lastPointer.value = { x: event.clientX, y: event.clientY }
@@ -132,6 +187,8 @@ function onPointerDown(event: PointerEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (isTouchPointerEvent(event)) return
+
   if (isPanning.value) {
     offsetX.value += event.clientX - lastPointer.value.x
     offsetY.value += event.clientY - lastPointer.value.y
@@ -153,8 +210,102 @@ function onPointerUp() {
 function onWheel(event: WheelEvent) {
   event.preventDefault()
   const next = event.deltaY > 0 ? scale.value * 0.9 : scale.value * 1.1
-  scale.value = Math.min(4, Math.max(0.4, next))
+  scale.value = clampScale(next)
   draw()
+}
+
+function onTouchStart(event: TouchEvent) {
+  event.preventDefault()
+
+  if (event.touches.length >= 2) {
+    clearLongPressTimer()
+    touchMoved.value = true
+    const [first, second] = [event.touches[0], event.touches[1]]
+    const center = getTouchCenter(first, second)
+    pinchState = {
+      distance: getTouchDistance(first, second),
+      centerX: center.x,
+      centerY: center.y,
+      scale: scale.value,
+      offsetX: offsetX.value,
+      offsetY: offsetY.value
+    }
+    return
+  }
+
+  const touch = event.touches[0]
+  if (!touch) return
+
+  touchMoved.value = false
+  lastPointer.value = { x: touch.clientX, y: touch.clientY }
+  startLongPress(touch.clientX, touch.clientY)
+}
+
+function onTouchMove(event: TouchEvent) {
+  event.preventDefault()
+
+  if (event.touches.length >= 2 && pinchState) {
+    clearLongPressTimer()
+    const [first, second] = [event.touches[0], event.touches[1]]
+    const center = getTouchCenter(first, second)
+    const nextDistance = getTouchDistance(first, second)
+
+    scale.value = clampScale(pinchState.scale * (nextDistance / pinchState.distance))
+    offsetX.value = pinchState.offsetX + (center.x - pinchState.centerX)
+    offsetY.value = pinchState.offsetY + (center.y - pinchState.centerY)
+    draw()
+    return
+  }
+
+  const touch = event.touches[0]
+  if (!touch) return
+
+  const movedDistance = Math.hypot(touch.clientX - touchStartPoint.x, touch.clientY - touchStartPoint.y)
+  if (movedDistance > TOUCH_DRAW_START_THRESHOLD_PX) {
+    clearLongPressTimer()
+    touchMoved.value = true
+  }
+
+  if (touchMoved.value && props.mode === 'paint') {
+    applyAction(touch.clientX, touch.clientY, 'paint')
+  }
+}
+
+function onTouchEnd(event: TouchEvent) {
+  event.preventDefault()
+
+  if (event.touches.length >= 2) {
+    const [first, second] = [event.touches[0], event.touches[1]]
+    const center = getTouchCenter(first, second)
+    pinchState = {
+      distance: getTouchDistance(first, second),
+      centerX: center.x,
+      centerY: center.y,
+      scale: scale.value,
+      offsetX: offsetX.value,
+      offsetY: offsetY.value
+    }
+    return
+  }
+
+  if (event.touches.length === 1) {
+    const touch = event.touches[0]
+    pinchState = null
+    touchMoved.value = false
+    startLongPress(touch.clientX, touch.clientY)
+    return
+  }
+
+  clearLongPressTimer()
+  pinchState = null
+
+  const touch = event.changedTouches[0]
+  if (touch && !touchMoved.value && !longPressTriggered.value) {
+    applyAction(touch.clientX, touch.clientY)
+  }
+
+  touchMoved.value = false
+  longPressTriggered.value = false
 }
 
 watch(
@@ -180,6 +331,10 @@ onMounted(() => {
     <canvas
       ref="canvasRef"
       class="h-full w-full touch-none"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+      @touchcancel="onTouchEnd"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -187,7 +342,7 @@ onMounted(() => {
       @wheel="onWheel"
     />
     <div class="pointer-events-none absolute bottom-3 right-3 rounded bg-black/60 px-2 py-1 text-xs text-slate-200">
-      Zoom {{ Math.round(scale * 100) }}% · Shift+Drag Pan
+      {{ t('canvasHint', { zoom: Math.round(scale * 100) }) }}
     </div>
   </div>
 </template>
