@@ -7,11 +7,13 @@ import ThreePreview from './components/ThreePreview.vue'
 import type { BeadSize } from './types'
 import { useEditorStore } from './stores/editor'
 import { nearestPaletteColor } from './utils/color'
+import { composeVisibleGrid } from './utils/export'
 
 const store = useEditorStore()
 const { t, locale } = useI18n()
 
 const mode = ref<'paint' | 'pick'>('paint')
+const exportingPdf = ref(false)
 
 const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
@@ -63,6 +65,71 @@ function exportPng() {
   link.download = 'beanpixel-export.png'
   link.href = canvas.toDataURL('image/png')
   link.click()
+}
+
+async function exportPdf() {
+  exportingPdf.value = true
+
+  try {
+    const { jsPDF } = await import('jspdf')
+    const grid = composeVisibleGrid(store.layers, store.gridWidth, store.gridHeight)
+    const pdf = new jsPDF({
+      orientation: store.gridWidth >= store.gridHeight ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    })
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 12
+    const previewTop = 30
+    const previewHeight = Math.max(40, pageHeight * 0.48)
+    const previewWidth = pageWidth - margin * 2
+    const cellSize = Math.min(previewWidth / store.gridWidth, previewHeight / store.gridHeight)
+    const gridDrawWidth = store.gridWidth * cellSize
+    const gridDrawHeight = store.gridHeight * cellSize
+    const startX = (pageWidth - gridDrawWidth) / 2
+    const bomTop = previewTop + gridDrawHeight + 12
+    const bomLines =
+      store.bom.length > 0
+        ? store.bom.map((item) => `${item.id} ${item.name} × ${item.count}`)
+        : ['No beads placed yet']
+
+    pdf.setFontSize(18)
+    pdf.text('BeanPixel Blueprint', margin, 18)
+    pdf.setFontSize(10)
+    pdf.text(
+      `Grid ${store.gridWidth}×${store.gridHeight} · ${store.beadSize} · Layers ${store.layers.length} · Total ${store.totalBeads}`,
+      margin,
+      24
+    )
+
+    for (let y = 0; y < store.gridHeight; y += 1) {
+      for (let x = 0; x < store.gridWidth; x += 1) {
+        const colorId = grid[y]?.[x]
+        const color = colorId ? colorMap.value.get(colorId) : null
+        const drawX = startX + x * cellSize
+        const drawY = previewTop + y * cellSize
+
+        pdf.setDrawColor(148, 163, 184)
+        if (color) {
+          const rgb = color.hex.match(/[0-9a-f]{2}/gi)?.map((value) => Number.parseInt(value, 16)) ?? [255, 255, 255]
+          pdf.setFillColor(rgb[0] ?? 255, rgb[1] ?? 255, rgb[2] ?? 255)
+        } else {
+          pdf.setFillColor(255, 255, 255)
+        }
+
+        pdf.rect(drawX, drawY, cellSize, cellSize, 'FD')
+      }
+    }
+
+    pdf.setFontSize(11)
+    pdf.text('BOM', margin, bomTop)
+    pdf.setFontSize(9)
+    pdf.text(pdf.splitTextToSize(bomLines.join('  •  '), pageWidth - margin * 2), margin, bomTop + 6)
+    pdf.save('beanpixel-blueprint.pdf')
+  } finally {
+    exportingPdf.value = false
+  }
 }
 
 async function importImage(event: Event) {
@@ -203,8 +270,15 @@ async function importImage(event: Event) {
                 <input class="hidden" type="file" accept="image/*" @change="importImage" />
               </label>
               <button class="rounded bg-slate-800 px-2 py-1" @click="store.clearCanvas">{{ t('clear') }}</button>
-              <button class="col-span-2 rounded bg-emerald-500 px-2 py-1 font-medium text-slate-950" @click="exportPng">
+              <button class="rounded bg-emerald-500 px-2 py-1 font-medium text-slate-950" @click="exportPng">
                 {{ t('exportPng') }}
+              </button>
+              <button
+                class="rounded bg-cyan-500 px-2 py-1 font-medium text-slate-950 disabled:cursor-wait disabled:opacity-60"
+                :disabled="exportingPdf"
+                @click="exportPdf"
+              >
+                {{ exportingPdf ? t('pdfPreparing') : t('exportPdf') }}
               </button>
             </div>
           </div>

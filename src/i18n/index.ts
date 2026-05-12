@@ -14,12 +14,14 @@ export const messages = {
     importImage: 'Import image',
     clear: 'Clear',
     exportPng: 'Export PNG',
+    exportPdf: 'Export PDF',
     addLayer: 'Add layer',
     connectivityWarning: 'Disconnected beads detected',
     bom: 'BOM',
     total: 'Total',
     language: 'Language',
-    physicalSize: 'Physical size'
+    physicalSize: 'Physical size',
+    pdfPreparing: 'Preparing PDF...'
   },
   zh: {
     title: 'BeanPixel · 拼豆数字创作平台',
@@ -34,12 +36,14 @@ export const messages = {
     importImage: '导入图片',
     clear: '清空',
     exportPng: '导出 PNG',
+    exportPdf: '导出 PDF',
     addLayer: '新增图层',
     connectivityWarning: '检测到孤立像素，请检查结构强度',
     bom: '物料清单',
     total: '总数',
     language: '语言',
-    physicalSize: '物理尺寸'
+    physicalSize: '物理尺寸',
+    pdfPreparing: '正在生成 PDF...'
   }
 }
 
