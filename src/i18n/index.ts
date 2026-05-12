@@ -15,6 +15,7 @@ export const messages = {
     clear: 'Clear',
     exportPng: 'Export PNG',
     exportPdf: 'Export PDF',
+    exportIncludeGuides: 'Include guide lines in exports',
     addLayer: 'Add layer',
     connectivityWarning: 'Disconnected beads detected',
     bom: 'BOM',
@@ -22,6 +23,11 @@ export const messages = {
     language: 'Language',
     physicalSize: 'Physical size',
     pdfPreparing: 'Preparing PDF...',
+    exportSheetTitle: 'BeanPixel Export Sheet',
+    exportSheetSummary: 'Canvas',
+    exportSheetPreview: 'Pattern Preview',
+    exportSheetLayout: 'Layout Chart',
+    exportSheetEmptyBom: 'No beads placed yet',
     canvasHint: 'Zoom {zoom}% · Shift+drag to pan · Pinch to zoom · Long press to pick'
   },
   zh: {
@@ -38,6 +44,7 @@ export const messages = {
     clear: '清空',
     exportPng: '导出 PNG',
     exportPdf: '导出 PDF',
+    exportIncludeGuides: '导出时包含辅助线',
     addLayer: '新增图层',
     connectivityWarning: '检测到孤立像素，请检查结构强度',
     bom: '物料清单',
@@ -45,6 +52,11 @@ export const messages = {
     language: '语言',
     physicalSize: '物理尺寸',
     pdfPreparing: '正在生成 PDF...',
+    exportSheetTitle: 'BeanPixel 导出总览图',
+    exportSheetSummary: '画布',
+    exportSheetPreview: '图案预览',
+    exportSheetLayout: '布局图',
+    exportSheetEmptyBom: '当前还没有豆子',
     canvasHint: '缩放 {zoom}% · Shift+拖动平移 · 双指缩放 · 长按取色'
   }
 }

@@ -1,30 +1,26 @@
 <script setup lang="ts">
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CanvasBoard from './components/CanvasBoard.vue'
 import ThreePreview from './components/ThreePreview.vue'
 import type { BeadSize } from './types'
 import { useEditorStore } from './stores/editor'
 import { nearestPaletteColor } from './utils/color'
-import { composeVisibleGrid } from './utils/export'
+import { createExportSheetCanvas } from './utils/export'
 
 const store = useEditorStore()
 const { t, locale } = useI18n()
 
 const mode = ref<'paint' | 'pick'>('paint')
 const exportingPdf = ref(false)
+const exportIncludeGuides = ref(true)
 
 const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
 
 const beadOptions: BeadSize[] = ['5mm', '2.6mm']
 const languageOptions = ['zh', 'en'] as const
-
-const colorMap = computed(() => {
-  const map = new Map(store.palette.map((item) => [item.id, item]))
-  return map
-})
 
 function applyDensity() {
   store.setDensity(densityWidth.value, densityHeight.value)
@@ -34,35 +30,31 @@ function setLayer(layerId: string) {
   store.activeLayerId = layerId
 }
 
-function exportPng() {
-  const canvas = document.createElement('canvas')
-  const size = 24
-  canvas.width = store.gridWidth * size
-  canvas.height = store.gridHeight * size
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-
-  ctx.fillStyle = '#0f172a'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  for (const layer of store.layers) {
-    for (let y = 0; y < store.gridHeight; y += 1) {
-      for (let x = 0; x < store.gridWidth; x += 1) {
-        const colorId = layer.grid[y]?.[x]
-        if (!colorId) continue
-
-        const color = colorMap.value.get(colorId)
-        if (!color) continue
-
-        ctx.fillStyle = color.hex
-        ctx.fillRect(x * size + 1, y * size + 1, size - 2, size - 2)
-      }
+function createExportCanvas() {
+  return createExportSheetCanvas({
+    gridWidth: store.gridWidth,
+    gridHeight: store.gridHeight,
+    layers: store.layers,
+    palette: store.palette,
+    bom: store.bom,
+    beadSize: store.beadSize,
+    totalBeads: store.totalBeads,
+    includeGuides: exportIncludeGuides.value,
+    labels: {
+      title: t('exportSheetTitle'),
+      summary: t('exportSheetSummary'),
+      preview: t('exportSheetPreview'),
+      layout: t('exportSheetLayout'),
+      bom: t('bom'),
+      emptyBom: t('exportSheetEmptyBom')
     }
-  }
+  })
+}
 
+function exportPng() {
+  const canvas = createExportCanvas()
   const link = document.createElement('a')
-  link.download = 'beanpixel-export.png'
+  link.download = 'beanpixel-sheet.png'
   link.href = canvas.toDataURL('image/png')
   link.click()
 }
@@ -72,60 +64,24 @@ async function exportPdf() {
 
   try {
     const { jsPDF } = await import('jspdf')
-    const grid = composeVisibleGrid(store.layers, store.gridWidth, store.gridHeight)
+    const canvas = createExportCanvas()
     const pdf = new jsPDF({
-      orientation: store.gridWidth >= store.gridHeight ? 'landscape' : 'portrait',
+      orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
       unit: 'mm',
       format: 'a4'
     })
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
     const margin = 12
-    const previewTop = 30
-    const previewHeight = Math.max(40, pageHeight * 0.48)
-    const previewWidth = pageWidth - margin * 2
-    const cellSize = Math.min(previewWidth / store.gridWidth, previewHeight / store.gridHeight)
-    const gridDrawWidth = store.gridWidth * cellSize
-    const gridDrawHeight = store.gridHeight * cellSize
-    const startX = (pageWidth - gridDrawWidth) / 2
-    const bomTop = previewTop + gridDrawHeight + 12
-    const bomLines =
-      store.bom.length > 0
-        ? store.bom.map((item) => `${item.id} ${item.name} × ${item.count}`)
-        : ['No beads placed yet']
+    const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
+    const imageWidth = canvas.width * scale
+    const imageHeight = canvas.height * scale
+    const imageX = (pageWidth - imageWidth) / 2
+    const imageY = (pageHeight - imageHeight) / 2
 
-    pdf.setFontSize(18)
-    pdf.text('BeanPixel Blueprint', margin, 18)
-    pdf.setFontSize(10)
-    pdf.text(
-      `Grid ${store.gridWidth}×${store.gridHeight} · ${store.beadSize} · Layers ${store.layers.length} · Total ${store.totalBeads}`,
-      margin,
-      24
-    )
-
-    for (let y = 0; y < store.gridHeight; y += 1) {
-      for (let x = 0; x < store.gridWidth; x += 1) {
-        const colorId = grid[y]?.[x]
-        const color = colorId ? colorMap.value.get(colorId) : null
-        const drawX = startX + x * cellSize
-        const drawY = previewTop + y * cellSize
-
-        pdf.setDrawColor(148, 163, 184)
-        if (color) {
-          const rgb = color.hex.match(/[0-9a-f]{2}/gi)?.map((value) => Number.parseInt(value, 16)) ?? [255, 255, 255]
-          pdf.setFillColor(rgb[0] ?? 255, rgb[1] ?? 255, rgb[2] ?? 255)
-        } else {
-          pdf.setFillColor(255, 255, 255)
-        }
-
-        pdf.rect(drawX, drawY, cellSize, cellSize, 'FD')
-      }
-    }
-
-    pdf.setFontSize(11)
-    pdf.text('BOM', margin, bomTop)
-    pdf.setFontSize(9)
-    pdf.text(pdf.splitTextToSize(bomLines.join('  •  '), pageWidth - margin * 2), margin, bomTop + 6)
+    pdf.setFillColor(2, 6, 23)
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F')
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', imageX, imageY, imageWidth, imageHeight)
     pdf.save('beanpixel-blueprint.pdf')
   } finally {
     exportingPdf.value = false
@@ -238,6 +194,9 @@ async function importImage(event: Event) {
 
             <label class="flex items-center gap-2">
               <input v-model="store.showGrid" type="checkbox" /> {{ t('showGrid') }}
+            </label>
+            <label class="flex items-center gap-2">
+              <input v-model="exportIncludeGuides" type="checkbox" /> {{ t('exportIncludeGuides') }}
             </label>
 
             <label class="block">{{ t('beadSize') }}</label>
