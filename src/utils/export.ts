@@ -1,4 +1,5 @@
 import type { GridColor, Layer, PaletteColor } from '../types'
+import { getTextColorForBackground } from './color-luminance'
 
 export interface ExportBomItem extends PaletteColor {
   count: number
@@ -162,15 +163,9 @@ function drawGrid(
       ctx.fillStyle = color.hex
       ctx.fillRect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize)
       
-      // Draw bead name if cell is large enough
+      // Draw bead name if cell is large enough (threshold: 12px)
       if (cellSize >= 12) {
-        const isLightColor = color.hex === '#f5f5f5' || color.hex === '#fffacd' || color.hex === '#fffff0' || 
-                             color.hex === '#ffb3d9' || color.hex === '#ffdab9' || color.hex === '#ffcc99' || 
-                             color.hex === '#f5f5dc' || color.hex === '#90ee90' || color.hex === '#87ceeb' ||
-                             color.hex === '#e6e6fa' || color.hex === '#dda0dd' || color.hex === '#d3d3d3' ||
-                             color.hex === '#c0c0c0' || color.hex === '#00ffff' || color.hex === '#40e0d0' ||
-                             color.hex === '#ffff00' || color.hex === '#39ff14'
-        ctx.fillStyle = isLightColor ? '#000000' : '#ffffff'
+        ctx.fillStyle = getTextColorForBackground(color.hex)
         ctx.font = `${Math.max(6, cellSize * 0.35)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'

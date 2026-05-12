@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEditorStore } from '../stores/editor'
+import { getTextColorForBackground } from '../utils/color-luminance'
 
 const props = defineProps<{
   mode: 'paint' | 'pick'
@@ -106,9 +107,9 @@ function draw() {
         ctx.fill()
       }
       
-      // Draw bead name if enabled and cell is large enough
-      if (store.showBeadNames && drawSize >= 16) {
-        ctx.fillStyle = paletteColor.hex === '#f5f5f5' || paletteColor.hex === '#fffacd' || paletteColor.hex === '#fffff0' || paletteColor.hex === '#ffb3d9' || paletteColor.hex === '#ffdab9' || paletteColor.hex === '#ffcc99' || paletteColor.hex === '#f5f5dc' ? '#000000' : '#ffffff'
+      // Draw bead name if enabled and cell is large enough (threshold: 12px to match export)
+      if (store.showBeadNames && drawSize >= 12) {
+        ctx.fillStyle = getTextColorForBackground(paletteColor.hex)
         ctx.font = `${Math.max(6, drawSize * 0.3)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
