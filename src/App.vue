@@ -23,7 +23,8 @@ const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
 const showCustomSize = ref(false)
 
-// Stores the original uploaded image so we can re-pixelate when resolution changes
+// Retains the decoded image element after import so we can re-pixelate at new resolutions.
+// The blob URL is revoked immediately after load; the img element itself holds the pixel data.
 const uploadedImage = ref<HTMLImageElement | null>(null)
 
 const beadOptions: BeadSize[] = ['5mm', '2.6mm']

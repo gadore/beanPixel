@@ -23,7 +23,12 @@ function getLabelMaterial(id: string): THREE.SpriteMaterial {
   const canvas = document.createElement('canvas')
   canvas.width = 128
   canvas.height = 64
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    const fallback = new THREE.SpriteMaterial({ depthTest: false })
+    labelMaterialCache.set(id, fallback)
+    return fallback
+  }
   ctx.fillStyle = 'rgba(255,255,255,0.92)'
   ctx.beginPath()
   ctx.roundRect(2, 2, 124, 60, 8)
