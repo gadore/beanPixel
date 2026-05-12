@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CanvasBoard from './components/CanvasBoard.vue'
 import ThreePreview from './components/ThreePreview.vue'
-import type { BeadShape, BeadSize } from './types'
+import type { BeadShape, BeadSize, ToolMode } from './types'
 import { useEditorStore } from './stores/editor'
 import { PALETTE_GROUPS } from './constants/palette'
 import { nearestPaletteColor } from './utils/color'
@@ -13,15 +13,18 @@ import { createExportSheetCanvas } from './utils/export'
 const store = useEditorStore()
 const { t, locale } = useI18n()
 
-const mode = ref<'paint' | 'pick'>('paint')
-const exportingPdf = ref(false)
+const mode = ref<ToolMode>('paint')
 const exportIncludeGuides = ref(true)
 const workspaceTab = ref(0) // 0 = 2D Canvas, 1 = 3D Preview
-const sidebarTab = ref(0) // 0 = Controls, 1 = Layers, 2 = Palette, 3 = BOM, 4 = Shortcuts
+const topSidebarTab = ref(0)    // 0 = Controls, 1 = Palette, 2 = Shortcuts
+const bottomSidebarTab = ref(0) // 0 = BOM, 1 = Layers
 
 const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
 const showCustomSize = ref(false)
+
+// Stores the original uploaded image so we can re-pixelate when resolution changes
+const uploadedImage = ref<HTMLImageElement | null>(null)
 
 const beadOptions: BeadSize[] = ['5mm', '2.6mm']
 const beadShapeOptions: BeadShape[] = ['square', 'round']
@@ -41,111 +44,24 @@ const paletteGroups = computed(() => PALETTE_GROUPS.map(g => ({
 const shortcutItems = computed(() => [
   { key: 'B', description: t('shortcutPaint') },
   { key: 'I', description: t('shortcutPick') },
+  { key: 'R', description: t('shortcutErase') },
   { key: 'G', description: t('shortcutToggleGrid') },
   { key: 'Shift+L', description: t('shortcutAddLayer') },
   { key: 'Shift+C', description: t('shortcutClear') },
-  { key: 'E / Shift+E', description: t('shortcutExport') }
+  { key: 'E', description: t('shortcutExport') }
 ])
 
-function applyPresetSize(width: number, height: number) {
-  densityWidth.value = width
-  densityHeight.value = height
-  store.setDensity(width, height)
-  showCustomSize.value = false
-}
-
-function applyDensity() {
-  store.setDensity(densityWidth.value, densityHeight.value)
-}
-
-function setLayer(layerId: string) {
-  store.activeLayerId = layerId
-}
-
-function createExportCanvas() {
-  return createExportSheetCanvas({
-    gridWidth: store.gridWidth,
-    gridHeight: store.gridHeight,
-    layers: store.layers,
-    palette: store.palette,
-    bom: store.bom,
-    beadSize: store.beadSize,
-    totalBeads: store.totalBeads,
-    includeGuides: exportIncludeGuides.value,
-    labels: {
-      title: t('exportSheetTitle'),
-      summary: t('exportSheetSummary'),
-      preview: t('exportSheetPreview'),
-      layout: t('exportSheetLayout'),
-      bom: t('bom'),
-      emptyBom: t('exportSheetEmptyBom')
-    }
-  })
-}
-
-function exportPng() {
-  const canvas = createExportCanvas()
-  const link = document.createElement('a')
-  link.download = 'beanpixel-sheet.png'
-  link.href = canvas.toDataURL('image/png')
-  link.click()
-}
-
-async function exportPdf() {
-  exportingPdf.value = true
-
-  try {
-    const { jsPDF } = await import('jspdf')
-    const canvas = createExportCanvas()
-    // Use logical (CSS) dimensions for PDF layout since canvas is scaled at 2x for crispness
-    const logicalWidth = parseInt(canvas.style.width) || canvas.width
-    const logicalHeight = parseInt(canvas.style.height) || canvas.height
-    const pdf = new jsPDF({
-      orientation: logicalWidth >= logicalHeight ? 'landscape' : 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    })
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const margin = 12
-    const scale = Math.min((pageWidth - margin * 2) / logicalWidth, (pageHeight - margin * 2) / logicalHeight)
-    const imageWidth = logicalWidth * scale
-    const imageHeight = logicalHeight * scale
-    const imageX = (pageWidth - imageWidth) / 2
-    const imageY = (pageHeight - imageHeight) / 2
-
-    pdf.setFillColor(248, 250, 252)
-    pdf.rect(0, 0, pageWidth, pageHeight, 'F')
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', imageX, imageY, imageWidth, imageHeight)
-    pdf.save('beanpixel-blueprint.pdf')
-  } finally {
-    exportingPdf.value = false
-  }
-}
-
-async function importImage(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  const imageUrl = URL.createObjectURL(file)
-
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const instance = new Image()
-    instance.onload = () => resolve(instance)
-    instance.onerror = reject
-    instance.src = imageUrl
-  })
-
-  const canvas = document.createElement('canvas')
-  canvas.width = store.gridWidth
-  canvas.height = store.gridHeight
-
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+async function pixelateImageToGrid(img: HTMLImageElement) {
+  const offscreen = document.createElement('canvas')
+  offscreen.width = store.gridWidth
+  offscreen.height = store.gridHeight
+  const ctx = offscreen.getContext('2d', { willReadFrequently: true })
   if (!ctx) return
 
   ctx.drawImage(img, 0, 0, store.gridWidth, store.gridHeight)
   const imageData = ctx.getImageData(0, 0, store.gridWidth, store.gridHeight)
+
+  store.clearCanvas()
 
   for (let y = 0; y < store.gridHeight; y += 1) {
     for (let x = 0; x < store.gridWidth; x += 1) {
@@ -166,8 +82,76 @@ async function importImage(event: Event) {
       store.paintCell(x, y, nearest.id)
     }
   }
+}
 
+function applyPresetSize(width: number, height: number) {
+  densityWidth.value = width
+  densityHeight.value = height
+  store.setDensity(width, height)
+  if (uploadedImage.value) {
+    void pixelateImageToGrid(uploadedImage.value)
+  }
+  showCustomSize.value = false
+}
+
+function applyDensity() {
+  store.setDensity(densityWidth.value, densityHeight.value)
+  if (uploadedImage.value) {
+    void pixelateImageToGrid(uploadedImage.value)
+  }
+}
+
+function setLayer(layerId: string) {
+  store.activeLayerId = layerId
+}
+
+function createExportCanvas() {
+  return createExportSheetCanvas({
+    gridWidth: store.gridWidth,
+    gridHeight: store.gridHeight,
+    layers: store.layers,
+    palette: store.palette,
+    bom: store.bom,
+    beadSize: store.beadSize,
+    totalBeads: store.totalBeads,
+    includeGuides: exportIncludeGuides.value,
+    beadShape: store.beadShape,
+    labels: {
+      title: t('exportSheetTitle'),
+      summary: t('exportSheetSummary'),
+      preview: t('exportSheetPreview')
+    }
+  })
+}
+
+function exportPng() {
+  const canvas = createExportCanvas()
+  const link = document.createElement('a')
+  link.download = 'beanpixel-sheet.png'
+  link.href = canvas.toDataURL('image/png')
+  link.click()
+}
+
+async function importImage(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  const imageUrl = URL.createObjectURL(file)
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const instance = new Image()
+    instance.onload = () => resolve(instance)
+    instance.onerror = reject
+    instance.src = imageUrl
+  })
+
+  // Store the loaded image for re-pixelation on resolution change
+  uploadedImage.value = img
+  // Blob URL can be revoked — the img element retains the decoded pixel data
   URL.revokeObjectURL(imageUrl)
+
+  await pixelateImageToGrid(img)
   input.value = ''
 }
 
@@ -196,6 +180,12 @@ function onKeydown(event: KeyboardEvent) {
     return
   }
 
+  if (key === 'r') {
+    mode.value = 'erase'
+    event.preventDefault()
+    return
+  }
+
   if (key === 'g') {
     store.showGrid = !store.showGrid
     event.preventDefault()
@@ -214,12 +204,8 @@ function onKeydown(event: KeyboardEvent) {
     return
   }
 
-  if (key === 'e') {
-    if (event.shiftKey) {
-      void exportPdf()
-    } else {
-      exportPng()
-    }
+  if (key === 'e' && !event.shiftKey) {
+    exportPng()
     event.preventDefault()
   }
 }
@@ -283,8 +269,9 @@ onUnmounted(() => {
       </section>
 
       <aside class="space-y-4">
+        <!-- Top panel: Controls, Palette, Shortcuts -->
         <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
-          <TabGroup :selectedIndex="sidebarTab" @change="sidebarTab = $event">
+          <TabGroup :selectedIndex="topSidebarTab" @change="topSidebarTab = $event">
             <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1 mb-3">
               <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
                 <span
@@ -303,27 +290,7 @@ onUnmounted(() => {
                     ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
                     : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
                 >
-                  {{ t('tabLayers') }}
-                </span>
-              </Tab>
-              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
-                <span
-                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
-                  :class="selected
-                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
-                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
-                >
                   {{ t('tabPalette') }}
-                </span>
-              </Tab>
-              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
-                <span
-                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
-                  :class="selected
-                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
-                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
-                >
-                  {{ t('tabBOM') }}
                 </span>
               </Tab>
               <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
@@ -359,7 +326,7 @@ onUnmounted(() => {
                 </Listbox>
 
                 <label class="block text-slate-700">{{ t('mode') }}</label>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
                   <button
                     class="rounded-lg px-2 py-1"
                     :class="mode === 'paint' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md' : 'bg-purple-50 text-slate-600 border border-purple-200'"
@@ -373,6 +340,13 @@ onUnmounted(() => {
                     @click="mode = 'pick'"
                   >
                     {{ t('pick') }}
+                  </button>
+                  <button
+                    class="rounded-lg px-2 py-1"
+                    :class="mode === 'erase' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-purple-50 text-slate-600 border border-purple-200'"
+                    @click="mode = 'erase'"
+                  >
+                    {{ t('erase') }}
                   </button>
                 </div>
 
@@ -456,50 +430,14 @@ onUnmounted(() => {
                     <input class="hidden" type="file" accept="image/*" @change="importImage" />
                   </label>
                   <button class="rounded-lg bg-purple-50 px-2 py-1 text-xs border border-purple-200 hover:bg-purple-100" @click="store.clearCanvas">{{ t('clear') }}</button>
-                  <button class="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-2 py-1 text-xs font-medium text-white shadow-md" @click="exportPng">
+                  <button class="col-span-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-2 py-1 text-xs font-medium text-white shadow-md" @click="exportPng">
                     {{ t('exportPng') }}
-                  </button>
-                  <button
-                    class="rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 px-2 py-1 text-xs font-medium text-white shadow-md disabled:cursor-wait disabled:opacity-60"
-                    :disabled="exportingPdf"
-                    @click="exportPdf"
-                  >
-                    {{ exportingPdf ? t('pdfPreparing') : t('exportPdf') }}
                   </button>
                 </div>
 
                 <p v-if="store.isolatedBeads.length > 0" class="mt-3 rounded-lg bg-red-50 border border-red-200 p-2 text-xs text-red-600">
                   {{ t('connectivityWarning') }} ({{ store.isolatedBeads.length }})
                 </p>
-              </TabPanel>
-
-              <!-- Layers Tab -->
-              <TabPanel>
-                <div class="space-y-2">
-                  <div
-                    v-for="layer in store.layers"
-                    :key="layer.id"
-                    class="flex items-center justify-between rounded-lg border px-2 py-1 cursor-pointer"
-                    :class="layer.id === store.activeLayerId ? 'border-purple-400 bg-purple-50' : 'border-purple-200 bg-white hover:bg-purple-50'"
-                    @click="setLayer(layer.id)"
-                  >
-                    <span class="text-sm" :class="{ 'text-purple-700 font-medium': layer.id === store.activeLayerId }">
-                      {{ layer.name }}
-                    </span>
-                    <button
-                      class="text-red-500 hover:text-red-700 text-lg"
-                      @click.stop="store.removeLayer(layer.id)"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <button
-                    class="w-full rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 text-sm shadow-md"
-                    @click="store.addLayer"
-                  >
-                    {{ t('addLayer') }}
-                  </button>
-                </div>
               </TabPanel>
 
               <!-- Palette Tab -->
@@ -530,17 +468,6 @@ onUnmounted(() => {
                 </div>
               </TabPanel>
 
-              <!-- BOM Tab -->
-              <TabPanel>
-                <ul class="space-y-2 text-sm max-h-96 overflow-y-auto">
-                  <li v-for="item in store.bom" :key="item.id" class="flex justify-between rounded-lg bg-purple-50 border border-purple-200 px-2 py-1">
-                    <span class="text-slate-700">{{ item.id }} ({{ item.name }})</span>
-                    <span class="text-purple-600 font-medium">× {{ item.count }}</span>
-                  </li>
-                </ul>
-                <p class="mt-2 text-xs text-slate-600">{{ t('total') }}: {{ store.totalBeads }}</p>
-              </TabPanel>
-
               <!-- Shortcuts Tab -->
               <TabPanel>
                 <ul class="space-y-2 text-sm max-h-96 overflow-y-auto">
@@ -551,6 +478,76 @@ onUnmounted(() => {
                     </kbd>
                   </li>
                 </ul>
+              </TabPanel>
+            </TabPanels>
+          </TabGroup>
+        </section>
+
+        <!-- Bottom panel: BOM, Layers -->
+        <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
+          <TabGroup :selectedIndex="bottomSidebarTab" @change="bottomSidebarTab = $event">
+            <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1 mb-3">
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
+                  {{ t('tabBOM') }}
+                </span>
+              </Tab>
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
+                  {{ t('tabLayers') }}
+                </span>
+              </Tab>
+            </TabList>
+
+            <TabPanels>
+              <!-- BOM Tab -->
+              <TabPanel>
+                <ul class="space-y-2 text-sm max-h-64 overflow-y-auto">
+                  <li v-for="item in store.bom" :key="item.id" class="flex justify-between rounded-lg bg-purple-50 border border-purple-200 px-2 py-1">
+                    <span class="text-slate-700">{{ item.id }} ({{ item.name }})</span>
+                    <span class="text-purple-600 font-medium">× {{ item.count }}</span>
+                  </li>
+                </ul>
+                <p class="mt-2 text-xs text-slate-600">{{ t('total') }}: {{ store.totalBeads }}</p>
+              </TabPanel>
+
+              <!-- Layers Tab -->
+              <TabPanel>
+                <div class="space-y-2">
+                  <div
+                    v-for="layer in store.layers"
+                    :key="layer.id"
+                    class="flex items-center justify-between rounded-lg border px-2 py-1 cursor-pointer"
+                    :class="layer.id === store.activeLayerId ? 'border-purple-400 bg-purple-50' : 'border-purple-200 bg-white hover:bg-purple-50'"
+                    @click="setLayer(layer.id)"
+                  >
+                    <span class="text-sm" :class="{ 'text-purple-700 font-medium': layer.id === store.activeLayerId }">
+                      {{ layer.name }}
+                    </span>
+                    <button
+                      class="text-red-500 hover:text-red-700 text-lg"
+                      @click.stop="store.removeLayer(layer.id)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    class="w-full rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 text-sm shadow-md"
+                    @click="store.addLayer"
+                  >
+                    {{ t('addLayer') }}
+                  </button>
+                </div>
               </TabPanel>
             </TabPanels>
           </TabGroup>

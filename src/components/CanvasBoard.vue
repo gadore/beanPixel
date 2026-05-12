@@ -3,9 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEditorStore } from '../stores/editor'
 import { getTextColorForBackground } from '../utils/color-luminance'
+import type { ToolMode } from '../types'
 
 const props = defineProps<{
-  mode: 'paint' | 'pick'
+  mode: ToolMode
 }>()
 
 const store = useEditorStore()
@@ -162,12 +163,14 @@ function draw() {
   ctx.restore()
 }
 
-function applyAction(clientX: number, clientY: number, mode: 'paint' | 'pick' = props.mode) {
+function applyAction(clientX: number, clientY: number, mode: ToolMode = props.mode) {
   const point = toGridCoordinates(clientX, clientY)
   if (!point) return
 
   if (mode === 'pick') {
     store.pickColorAt(point.x, point.y)
+  } else if (mode === 'erase') {
+    store.paintCell(point.x, point.y, null)
   } else {
     store.paintCell(point.x, point.y)
   }
@@ -238,7 +241,7 @@ function onPointerMove(event: PointerEvent) {
     return
   }
 
-  if (isDrawing.value && props.mode === 'paint') {
+  if (isDrawing.value && (props.mode === 'paint' || props.mode === 'erase')) {
     applyAction(event.clientX, event.clientY)
   }
 }
@@ -250,8 +253,43 @@ function onPointerUp() {
 
 function onWheel(event: WheelEvent) {
   event.preventDefault()
-  const next = event.deltaY > 0 ? scale.value * 0.9 : scale.value * 1.1
-  scale.value = clampScale(next)
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const mouseX = event.clientX - rect.left
+  const mouseY = event.clientY - rect.top
+
+  const oldScale = scale.value
+  const factor = event.deltaY < 0 ? 1.1 : 0.9
+  const newScale = clampScale(oldScale * factor)
+  if (newScale === oldScale) return
+
+  // Capture cell size and canvas center before updating scale
+  const oldCellSize = cellSize.value
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  const cx = (w - store.gridWidth * oldCellSize) / 2
+  const cy = (h - store.gridHeight * oldCellSize) / 2
+
+  // World-space point (in pixels relative to grid origin) under the mouse
+  const worldX = mouseX - cx - offsetX.value
+  const worldY = mouseY - cy - offsetY.value
+
+  scale.value = newScale
+
+  // New cell size after scale update
+  const newCellSize = cellSize.value
+  const ratio = newCellSize / oldCellSize
+
+  // New center with updated cell size
+  const newCx = (w - store.gridWidth * newCellSize) / 2
+  const newCy = (h - store.gridHeight * newCellSize) / 2
+
+  // Shift offset so the world point stays under the mouse
+  offsetX.value = mouseX - newCx - worldX * ratio
+  offsetY.value = mouseY - newCy - worldY * ratio
+
   draw()
 }
 
@@ -307,8 +345,8 @@ function onTouchMove(event: TouchEvent) {
     touchMoved.value = true
   }
 
-  if (touchMoved.value && props.mode === 'paint') {
-    applyAction(touch.clientX, touch.clientY, 'paint')
+  if (touchMoved.value && (props.mode === 'paint' || props.mode === 'erase')) {
+    applyAction(touch.clientX, touch.clientY, props.mode)
   }
 }
 
