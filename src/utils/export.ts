@@ -1,4 +1,5 @@
 import type { GridColor, Layer, PaletteColor } from '../types'
+import { getTextColorForBackground } from './color-luminance'
 
 export interface ExportBomItem extends PaletteColor {
   count: number
@@ -25,13 +26,13 @@ export interface ExportSheetOptions {
   labels: ExportSheetLabels
 }
 
-const BACKGROUND = '#020617'
-const PANEL_BACKGROUND = '#0f172a'
-const PANEL_BORDER = '#334155'
-const TEXT_PRIMARY = '#e2e8f0'
-const TEXT_SECONDARY = '#94a3b8'
-const GRID_LINE = 'rgba(148, 163, 184, 0.18)'
-const GRID_LINE_STRONG = 'rgba(148, 163, 184, 0.45)'
+const BACKGROUND = '#f8fafc'
+const PANEL_BACKGROUND = '#ffffff'
+const PANEL_BORDER = '#cbd5e1'
+const TEXT_PRIMARY = '#0f172a'
+const TEXT_SECONDARY = '#64748b'
+const GRID_LINE = 'rgba(100, 116, 139, 0.18)'
+const GRID_LINE_STRONG = 'rgba(100, 116, 139, 0.45)'
 const EMPTY_CELL = '#ffffff'
 
 export function composeVisibleGrid(layers: Layer[], width: number, height: number): GridColor[][] {
@@ -161,6 +162,15 @@ function drawGrid(
 
       ctx.fillStyle = color.hex
       ctx.fillRect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize)
+      
+      // Draw bead name if cell is large enough (threshold: 12px)
+      if (cellSize >= 12) {
+        ctx.fillStyle = getTextColorForBackground(color.hex)
+        ctx.font = `${Math.max(6, cellSize * 0.35)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(color.id, originX + x * cellSize + cellSize / 2, originY + y * cellSize + cellSize / 2)
+      }
     }
   }
 

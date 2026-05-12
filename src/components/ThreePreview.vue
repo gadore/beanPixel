@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useEditorStore } from '../stores/editor'
 
 const containerRef = ref<HTMLDivElement | null>(null)
@@ -9,6 +10,7 @@ const store = useEditorStore()
 let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
+let controls: OrbitControls | null = null
 let frameId = 0
 
 function buildScene() {
@@ -47,7 +49,8 @@ function buildScene() {
 }
 
 function render() {
-  if (!renderer || !scene || !camera) return
+  if (!renderer || !scene || !camera || !controls) return
+  controls.update()
   renderer.render(scene, camera)
   frameId = requestAnimationFrame(render)
 }
@@ -70,11 +73,19 @@ onMounted(() => {
   container.appendChild(renderer.domElement)
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color('#020617')
+  scene.background = new THREE.Color('#f8fafc')
 
   camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000)
   camera.position.set(8, 8, 10)
   camera.lookAt(0, 0, 0)
+  
+  controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.05
+  controls.screenSpacePanning = false
+  controls.minDistance = 3
+  controls.maxDistance = 50
+  controls.maxPolarAngle = Math.PI / 2
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.6)
   ambient.userData.keep = true
@@ -102,6 +113,7 @@ watch(
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   if (frameId) cancelAnimationFrame(frameId)
+  controls?.dispose()
   renderer?.dispose()
   if (renderer?.domElement?.parentNode) {
     renderer.domElement.parentNode.removeChild(renderer.domElement)
@@ -110,5 +122,5 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="h-72 w-full overflow-hidden rounded-xl border border-slate-700"></div>
+  <div ref="containerRef" class="h-[70vh] min-h-[460px] w-full overflow-hidden rounded-xl border border-slate-300"></div>
 </template>

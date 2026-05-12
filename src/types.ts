@@ -1,5 +1,7 @@
 export type BeadSize = '5mm' | '2.6mm'
 
+export type BeadShape = 'round' | 'square'
+
 export type GridColor = string | null
 
 export interface BeadCell {
@@ -18,4 +20,11 @@ export interface PaletteColor {
   id: string
   name: string
   hex: string
+  group: string
+}
+
+export interface PaletteGroup {
+  id: string
+  name: string
+  nameZh: string
 }
