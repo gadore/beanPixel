@@ -97,17 +97,20 @@ async function exportPdf() {
   try {
     const { jsPDF } = await import('jspdf')
     const canvas = createExportCanvas()
+    // Use logical (CSS) dimensions for PDF layout since canvas is scaled at 2x for crispness
+    const logicalWidth = parseInt(canvas.style.width) || canvas.width
+    const logicalHeight = parseInt(canvas.style.height) || canvas.height
     const pdf = new jsPDF({
-      orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
+      orientation: logicalWidth >= logicalHeight ? 'landscape' : 'portrait',
       unit: 'mm',
       format: 'a4'
     })
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
     const margin = 12
-    const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
-    const imageWidth = canvas.width * scale
-    const imageHeight = canvas.height * scale
+    const scale = Math.min((pageWidth - margin * 2) / logicalWidth, (pageHeight - margin * 2) / logicalHeight)
+    const imageWidth = logicalWidth * scale
+    const imageHeight = logicalHeight * scale
     const imageX = (pageWidth - imageWidth) / 2
     const imageY = (pageHeight - imageHeight) / 2
 
@@ -246,13 +249,23 @@ onUnmounted(() => {
 
         <TabGroup :selectedIndex="workspaceTab" @change="workspaceTab = $event">
           <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1">
-            <Tab v-slot="{ selected }" class="w-full rounded-lg py-2.5 text-sm font-medium leading-5 focus:outline-none">
-              <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+            <Tab v-slot="{ selected }" class="w-full focus:outline-none">
+              <span
+                class="block w-full rounded-lg py-2.5 text-sm font-semibold leading-5 text-center transition-all"
+                :class="selected
+                  ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                  : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+              >
                 {{ t('tabCanvas') }}
               </span>
             </Tab>
-            <Tab v-slot="{ selected }" class="w-full rounded-lg py-2.5 text-sm font-medium leading-5 focus:outline-none">
-              <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+            <Tab v-slot="{ selected }" class="w-full focus:outline-none">
+              <span
+                class="block w-full rounded-lg py-2.5 text-sm font-semibold leading-5 text-center transition-all"
+                :class="selected
+                  ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                  : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+              >
                 {{ t('tab3DPreview') }}
               </span>
             </Tab>
@@ -273,28 +286,53 @@ onUnmounted(() => {
         <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
           <TabGroup :selectedIndex="sidebarTab" @change="sidebarTab = $event">
             <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1 mb-3">
-              <Tab v-slot="{ selected }" class="flex-1 rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none">
-                <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
                   {{ t('tabControls') }}
                 </span>
               </Tab>
-              <Tab v-slot="{ selected }" class="flex-1 rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none">
-                <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
                   {{ t('tabLayers') }}
                 </span>
               </Tab>
-              <Tab v-slot="{ selected }" class="flex-1 rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none">
-                <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
                   {{ t('tabPalette') }}
                 </span>
               </Tab>
-              <Tab v-slot="{ selected }" class="flex-1 rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none">
-                <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
                   {{ t('tabBOM') }}
                 </span>
               </Tab>
-              <Tab v-slot="{ selected }" class="flex-1 rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none">
-                <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
+              <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
+                <span
+                  class="block w-full rounded-lg py-1.5 text-xs font-semibold leading-5 text-center transition-all"
+                  :class="selected
+                    ? 'bg-white text-purple-700 shadow-md ring-1 ring-purple-300'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-purple-600'"
+                >
                   {{ t('tabShortcuts') }}
                 </span>
               </Tab>
