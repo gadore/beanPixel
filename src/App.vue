@@ -152,7 +152,8 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (isEditableTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return
+  const hasUnsupportedModifier = event.ctrlKey || event.metaKey || event.altKey
+  if (isEditableTarget(event.target) || hasUnsupportedModifier) return
 
   const key = event.key.toLowerCase()
 

@@ -20,8 +20,8 @@ const lastPointer = ref({ x: 0, y: 0 })
 const touchMoved = ref(false)
 const longPressTriggered = ref(false)
 
-const LONG_PRESS_MS = 450
-const TOUCH_DRAG_THRESHOLD = 12
+const LONG_PRESS_PICK_DELAY_MS = 450
+const TOUCH_DRAW_START_THRESHOLD_PX = 12
 
 let longPressTimer = 0
 let touchStartPoint = { x: 0, y: 0 }
@@ -163,7 +163,7 @@ function startLongPress(clientX: number, clientY: number) {
   longPressTimer = window.setTimeout(() => {
     longPressTriggered.value = true
     applyAction(clientX, clientY, 'pick')
-  }, LONG_PRESS_MS)
+  }, LONG_PRESS_PICK_DELAY_MS)
 }
 
 function isTouchPointerEvent(event: PointerEvent) {
@@ -261,7 +261,7 @@ function onTouchMove(event: TouchEvent) {
   if (!touch) return
 
   const movedDistance = Math.hypot(touch.clientX - touchStartPoint.x, touch.clientY - touchStartPoint.y)
-  if (movedDistance > TOUCH_DRAG_THRESHOLD) {
+  if (movedDistance > TOUCH_DRAW_START_THRESHOLD_PX) {
     clearLongPressTimer()
     touchMoved.value = true
   }
