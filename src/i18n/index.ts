@@ -35,7 +35,22 @@ export const messages = {
     shortcutAddLayer: 'Add a new layer',
     shortcutClear: 'Clear the canvas',
     shortcutExport: 'Export image / PDF',
-    canvasHint: 'Zoom {zoom}% · Shift+drag to pan · Pinch to zoom · Long press to pick'
+    canvasHint: 'Zoom {zoom}% · Shift+drag to pan · Pinch to zoom · Long press to pick',
+    beadShape: 'Bead shape',
+    round: 'Round',
+    square: 'Square',
+    showBeadNames: 'Show bead names',
+    presetSizes: 'Preset sizes',
+    customSize: 'Custom size',
+    paletteGroup: 'Color group',
+    tabCanvas: '2D Canvas',
+    tab3DPreview: '3D Preview',
+    tabControls: 'Controls',
+    tabLayers: 'Layers',
+    tabPalette: 'Palette',
+    tabBOM: 'BOM',
+    tabShortcuts: 'Shortcuts',
+    selectedColorId: 'Selected'
   },
   zh: {
     title: 'BeanPixel · 拼豆数字创作平台',
@@ -71,7 +86,22 @@ export const messages = {
     shortcutAddLayer: '新增图层',
     shortcutClear: '清空画布',
     shortcutExport: '导出图片 / PDF',
-    canvasHint: '缩放 {zoom}% · Shift+拖动平移 · 双指缩放 · 长按取色'
+    canvasHint: '缩放 {zoom}% · Shift+拖动平移 · 双指缩放 · 长按取色',
+    beadShape: '豆子形状',
+    round: '圆形',
+    square: '方形',
+    showBeadNames: '显示豆子名称',
+    presetSizes: '预设尺寸',
+    customSize: '自定义尺寸',
+    paletteGroup: '颜色分组',
+    tabCanvas: '2D 画布',
+    tab3DPreview: '3D 预览',
+    tabControls: '控制面板',
+    tabLayers: '图层',
+    tabPalette: '色板',
+    tabBOM: '物料清单',
+    tabShortcuts: '快捷键',
+    selectedColorId: '已选择'
   }
 }
 

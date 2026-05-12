@@ -36,13 +36,18 @@ let pinchState: {
 
 const cellSize = computed(() => Math.max(8, Math.floor((14 * scale.value * 100) / store.gridWidth) / 100))
 
+const canvasWidthPx = computed(() => store.gridWidth * cellSize.value)
+const canvasHeightPx = computed(() => store.gridHeight * cellSize.value)
+
 function toGridCoordinates(clientX: number, clientY: number) {
   const canvas = canvasRef.value
   if (!canvas) return null
 
   const rect = canvas.getBoundingClientRect()
-  const px = clientX - rect.left - offsetX.value
-  const py = clientY - rect.top - offsetY.value
+  const centerX = (canvas.clientWidth - canvasWidthPx.value) / 2
+  const centerY = (canvas.clientHeight - canvasHeightPx.value) / 2
+  const px = clientX - rect.left - centerX - offsetX.value
+  const py = clientY - rect.top - centerY - offsetY.value
 
   const x = Math.floor(px / cellSize.value)
   const y = Math.floor(py / cellSize.value)
@@ -66,14 +71,18 @@ function draw() {
   canvas.height = Math.floor(height * dpr)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-  ctx.fillStyle = '#0b1020'
+  ctx.fillStyle = '#f8fafc'
   ctx.fillRect(0, 0, width, height)
 
   const grid = store.activeLayer.grid
   const drawSize = cellSize.value
 
   ctx.save()
-  ctx.translate(offsetX.value, offsetY.value)
+  
+  // Center the canvas
+  const centerX = (width - canvasWidthPx.value) / 2
+  const centerY = (height - canvasHeightPx.value) / 2
+  ctx.translate(centerX + offsetX.value, centerY + offsetY.value)
 
   for (let y = 0; y < store.gridHeight; y += 1) {
     for (let x = 0; x < store.gridWidth; x += 1) {
@@ -84,16 +93,32 @@ function draw() {
       ctx.fillStyle = paletteColor.hex
       const px = x * drawSize
       const py = y * drawSize
-      const radius = Math.max(2, drawSize * 0.2)
 
-      ctx.beginPath()
-      ctx.roundRect(px + 1, py + 1, drawSize - 2, drawSize - 2, radius)
-      ctx.fill()
+      if (store.beadShape === 'round') {
+        const radius = (drawSize - 2) / 2
+        ctx.beginPath()
+        ctx.arc(px + drawSize / 2, py + drawSize / 2, radius, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        const radius = Math.max(2, drawSize * 0.2)
+        ctx.beginPath()
+        ctx.roundRect(px + 1, py + 1, drawSize - 2, drawSize - 2, radius)
+        ctx.fill()
+      }
+      
+      // Draw bead name if enabled and cell is large enough
+      if (store.showBeadNames && drawSize >= 16) {
+        ctx.fillStyle = paletteColor.hex === '#f5f5f5' || paletteColor.hex === '#fffacd' || paletteColor.hex === '#fffff0' || paletteColor.hex === '#ffb3d9' || paletteColor.hex === '#ffdab9' || paletteColor.hex === '#ffcc99' || paletteColor.hex === '#f5f5dc' ? '#000000' : '#ffffff'
+        ctx.font = `${Math.max(6, drawSize * 0.3)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(paletteColor.id, px + drawSize / 2, py + drawSize / 2)
+      }
     }
   }
 
   if (store.showGrid) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+    ctx.strokeStyle = 'rgba(100,116,139,0.3)'
     ctx.lineWidth = 1
     for (let x = 0; x <= store.gridWidth; x += 1) {
       const px = x * drawSize
@@ -315,7 +340,12 @@ watch(
     store.gridHeight,
     store.activeLayer.grid,
     store.selectedColorId,
-    store.isolatedBeads
+    store.isolatedBeads,
+    store.beadShape,
+    store.showBeadNames,
+    scale.value,
+    offsetX.value,
+    offsetY.value
   ],
   () => draw(),
   { deep: true }
@@ -327,7 +357,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="relative h-[70vh] min-h-[460px] w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-950">
+  <div class="relative h-[70vh] min-h-[460px] w-full overflow-hidden rounded-xl border border-slate-300 bg-slate-50">
     <canvas
       ref="canvasRef"
       class="h-full w-full touch-none"
@@ -341,7 +371,7 @@ onMounted(() => {
       @pointercancel="onPointerUp"
       @wheel="onWheel"
     />
-    <div class="pointer-events-none absolute bottom-3 right-3 rounded bg-black/60 px-2 py-1 text-xs text-slate-200">
+    <div class="pointer-events-none absolute bottom-3 right-3 rounded bg-slate-900/80 px-2 py-1 text-xs text-slate-100">
       {{ t('canvasHint', { zoom: Math.round(scale * 100) }) }}
     </div>
   </div>

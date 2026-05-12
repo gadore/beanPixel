@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { PERLER_PALETTE } from '../constants/palette'
-import type { BeadSize, GridColor, Layer } from '../types'
+import type { BeadShape, BeadSize, GridColor, Layer } from '../types'
 import { findIsolatedBeads } from '../utils/connectivity'
 
 const BEAD_MM: Record<BeadSize, number> = {
@@ -25,9 +25,12 @@ export const useEditorStore = defineStore('editor', () => {
   const gridWidth = ref(48)
   const gridHeight = ref(48)
   const beadSize = ref<BeadSize>('5mm')
+  const beadShape = ref<BeadShape>('square')
   const showGrid = ref(true)
+  const showBeadNames = ref(false)
   const palette = ref(PERLER_PALETTE)
   const selectedColorId = ref(palette.value[0].id)
+  const selectedPaletteGroup = ref('all')
   const layers = ref<Layer[]>([createLayer('Layer 1', gridWidth.value, gridHeight.value)])
   const activeLayerId = ref(layers.value[0].id)
 
@@ -38,6 +41,13 @@ export const useEditorStore = defineStore('editor', () => {
   const selectedColor = computed(
     () => palette.value.find((color) => color.id === selectedColorId.value) ?? palette.value[0]
   )
+  
+  const filteredPalette = computed(() => {
+    if (selectedPaletteGroup.value === 'all') {
+      return palette.value
+    }
+    return palette.value.filter((color) => color.group === selectedPaletteGroup.value)
+  })
 
   const isolatedBeads = computed(() => findIsolatedBeads(activeLayer.value.grid))
 
@@ -70,6 +80,10 @@ export const useEditorStore = defineStore('editor', () => {
 
   function selectColor(colorId: string) {
     selectedColorId.value = colorId
+  }
+  
+  function selectPaletteGroup(groupId: string) {
+    selectedPaletteGroup.value = groupId
   }
 
   function pickColorAt(x: number, y: number) {
@@ -124,10 +138,14 @@ export const useEditorStore = defineStore('editor', () => {
 
   return {
     beadSize,
+    beadShape,
     showGrid,
+    showBeadNames,
     palette,
+    filteredPalette,
     selectedColorId,
     selectedColor,
+    selectedPaletteGroup,
     gridWidth,
     gridHeight,
     layers,
@@ -138,6 +156,7 @@ export const useEditorStore = defineStore('editor', () => {
     bom,
     totalBeads,
     selectColor,
+    selectPaletteGroup,
     pickColorAt,
     paintCell,
     clearCanvas,
