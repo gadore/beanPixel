@@ -244,7 +244,7 @@ onUnmounted(() => {
           </p>
         </header>
 
-        <TabGroup v-model="workspaceTab">
+        <TabGroup :selectedIndex="workspaceTab" @change="workspaceTab = $event">
           <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1">
             <Tab v-slot="{ selected }" class="w-full rounded-lg py-2.5 text-sm font-medium leading-5 focus:outline-none">
               <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
@@ -271,7 +271,7 @@ onUnmounted(() => {
 
       <aside class="space-y-4">
         <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
-          <TabGroup v-model="sidebarTab">
+          <TabGroup :selectedIndex="sidebarTab" @change="sidebarTab = $event">
             <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1 mb-3">
               <Tab v-slot="{ selected }" class="flex-1 rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none">
                 <span :class="selected ? 'bg-white text-purple-700 shadow' : 'text-slate-600 hover:bg-white/50'">
