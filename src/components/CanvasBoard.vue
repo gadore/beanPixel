@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEditorStore } from '../stores/editor'
 import { getTextColorForBackground } from '../utils/color-luminance'
@@ -15,6 +15,8 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const scale = ref(1)
 const offsetX = ref(0)
 const offsetY = ref(0)
+const containerW = ref(0)
+const containerH = ref(0)
 const isDrawing = ref(false)
 const isPanning = ref(false)
 const lastPointer = ref({ x: 0, y: 0 })
@@ -26,6 +28,7 @@ const TOUCH_DRAW_START_THRESHOLD_PX = 12
 
 let longPressTimer = 0
 let touchStartPoint = { x: 0, y: 0 }
+let resizeObserver: ResizeObserver | null = null
 let pinchState: {
   distance: number
   centerX: number
@@ -35,7 +38,15 @@ let pinchState: {
   offsetY: number
 } | null = null
 
-const cellSize = computed(() => Math.max(8, Math.floor((14 * scale.value * 100) / store.gridWidth) / 100))
+// Base cell size that fits the grid snugly in the container, multiplied by user zoom scale
+const cellSize = computed(() => {
+  const w = containerW.value || 700
+  const h = containerH.value || 460
+  const fitW = w / store.gridWidth
+  const fitH = h / store.gridHeight
+  const fit = Math.min(fitW, fitH)
+  return Math.max(2, fit * scale.value)
+})
 
 const canvasWidthPx = computed(() => store.gridWidth * cellSize.value)
 const canvasHeightPx = computed(() => store.gridHeight * cellSize.value)
@@ -107,10 +118,10 @@ function draw() {
         ctx.fill()
       }
       
-      // Draw bead name if enabled and cell is large enough (threshold: 12px to match export)
-      if (store.showBeadNames && drawSize >= 12) {
+      // Draw bead name if enabled and cell is large enough (threshold: 8px)
+      if (store.showBeadNames && drawSize >= 8) {
         ctx.fillStyle = getTextColorForBackground(paletteColor.hex)
-        ctx.font = `${Math.max(6, drawSize * 0.3)}px sans-serif`
+        ctx.font = `${Math.max(5, Math.floor(drawSize * 0.4))}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(paletteColor.id, px + drawSize / 2, py + drawSize / 2)
@@ -352,8 +363,35 @@ watch(
   { deep: true }
 )
 
+// When grid dimensions change, reset zoom and pan so the new content auto-fits
+watch(
+  () => [store.gridWidth, store.gridHeight],
+  () => {
+    scale.value = 1
+    offsetX.value = 0
+    offsetY.value = 0
+  }
+)
+
 onMounted(() => {
+  const canvas = canvasRef.value
+  if (canvas) {
+    containerW.value = canvas.clientWidth
+    containerH.value = canvas.clientHeight
+    resizeObserver = new ResizeObserver(() => {
+      if (canvas) {
+        containerW.value = canvas.clientWidth
+        containerH.value = canvas.clientHeight
+        draw()
+      }
+    })
+    resizeObserver.observe(canvas)
+  }
   draw()
+})
+
+onUnmounted(() => {
+  resizeObserver?.disconnect()
 })
 </script>
 

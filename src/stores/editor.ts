@@ -112,12 +112,21 @@ export const useEditorStore = defineStore('editor', () => {
     gridHeight.value = safeHeight
 
     layers.value = layers.value.map((layer) => {
+      const srcW = layer.grid[0]?.length ?? 0
+      const srcH = layer.grid.length
       const next = createGrid(safeWidth, safeHeight)
-      for (let y = 0; y < Math.min(layer.grid.length, safeHeight); y += 1) {
-        for (let x = 0; x < Math.min(layer.grid[y].length, safeWidth); x += 1) {
-          next[y][x] = layer.grid[y][x]
+
+      if (srcW > 0 && srcH > 0) {
+        for (let y = 0; y < safeHeight; y += 1) {
+          for (let x = 0; x < safeWidth; x += 1) {
+            // Nearest-neighbor scaling: map target pixel back to source
+            const srcX = Math.min(Math.round((x * (srcW - 1)) / Math.max(safeWidth - 1, 1)), srcW - 1)
+            const srcY = Math.min(Math.round((y * (srcH - 1)) / Math.max(safeHeight - 1, 1)), srcH - 1)
+            next[y][x] = layer.grid[srcY]?.[srcX] ?? null
+          }
         }
       }
+
       return { ...layer, grid: next }
     })
   }

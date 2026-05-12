@@ -249,21 +249,27 @@ function drawBom(
     const column = index % columns
     const row = Math.floor(index / columns)
     const itemX = x + column * columnWidth
-    const itemY = y + 28 + row * rowHeight
+    const rowTop = y + 28 + row * rowHeight
+    // Vertical center of the row for consistent swatch + text alignment
+    const rowMidY = rowTop + rowHeight / 2 - 2
 
     ctx.fillStyle = item.hex
-    ctx.fillRect(itemX, itemY - 12, 14, 14)
+    ctx.fillRect(itemX, rowMidY - 7, 14, 14)
     ctx.strokeStyle = GRID_LINE_STRONG
-    ctx.strokeRect(itemX, itemY - 12, 14, 14)
+    ctx.lineWidth = 1
+    ctx.strokeRect(itemX, rowMidY - 7, 14, 14)
 
+    // Use 'middle' baseline for perfect vertical alignment with the swatch
+    ctx.textBaseline = 'middle'
     drawText(
       ctx,
       `${item.id} · ${item.name} × ${item.count}`,
       itemX + 24,
-      itemY,
+      rowMidY,
       TEXT_PRIMARY,
-      '500 14px Inter, system-ui, sans-serif'
+      '500 13px Inter, system-ui, sans-serif'
     )
+    ctx.textBaseline = 'alphabetic'
   })
 
   return 28 + Math.ceil(bom.length / columns) * rowHeight
@@ -290,13 +296,21 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
     padding * 2 + headerHeight + previewPanelHeight + gap + layoutPanelHeight + gap + bomHeight
 
   const canvas = document.createElement('canvas')
-  canvas.width = canvasWidth
-  canvas.height = canvasHeight
+  // Use 2x pixel ratio for crisp export on retina / high-DPI displays
+  const dpr = Math.max(2, typeof window !== 'undefined' ? (window.devicePixelRatio || 2) : 2)
+  canvas.width = canvasWidth * dpr
+  canvas.height = canvasHeight * dpr
+  // Keep CSS size at logical dimensions so callers get consistent layout
+  canvas.style.width = `${canvasWidth}px`
+  canvas.style.height = `${canvasHeight}px`
 
   const ctx = canvas.getContext('2d')
   if (!ctx) {
     return canvas
   }
+
+  // Scale all drawing commands by DPR so coordinates stay in logical pixels
+  ctx.scale(dpr, dpr)
 
   ctx.fillStyle = BACKGROUND
   ctx.fillRect(0, 0, canvasWidth, canvasHeight)
