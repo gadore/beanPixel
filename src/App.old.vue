@@ -48,13 +48,11 @@ function createExportCanvas() {
     beadSize: store.beadSize,
     totalBeads: store.totalBeads,
     includeGuides: exportIncludeGuides.value,
+    beadShape: store.beadShape,
     labels: {
       title: t('exportSheetTitle'),
       summary: t('exportSheetSummary'),
-      preview: t('exportSheetPreview'),
-      layout: t('exportSheetLayout'),
-      bom: t('bom'),
-      emptyBom: t('exportSheetEmptyBom')
+      preview: t('exportSheetPreview')
     }
   })
 }
@@ -71,26 +69,8 @@ async function exportPdf() {
   exportingPdf.value = true
 
   try {
-    const { jsPDF } = await import('jspdf')
-    const canvas = createExportCanvas()
-    const pdf = new jsPDF({
-      orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    })
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const margin = 12
-    const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
-    const imageWidth = canvas.width * scale
-    const imageHeight = canvas.height * scale
-    const imageX = (pageWidth - imageWidth) / 2
-    const imageY = (pageHeight - imageHeight) / 2
-
-    pdf.setFillColor(2, 6, 23)
-    pdf.rect(0, 0, pageWidth, pageHeight, 'F')
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', imageX, imageY, imageWidth, imageHeight)
-    pdf.save('beanpixel-blueprint.pdf')
+    // PDF export removed
+    console.warn('PDF export is no longer supported')
   } finally {
     exportingPdf.value = false
   }

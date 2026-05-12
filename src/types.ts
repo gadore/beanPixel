@@ -2,6 +2,8 @@ export type BeadSize = '5mm' | '2.6mm'
 
 export type BeadShape = 'round' | 'square'
 
+export type ToolMode = 'paint' | 'pick' | 'erase'
+
 export type GridColor = string | null
 
 export interface BeadCell {

@@ -1,4 +1,4 @@
-import type { GridColor, Layer, PaletteColor } from '../types'
+import type { BeadShape, GridColor, Layer, PaletteColor } from '../types'
 import { getTextColorForBackground } from './color-luminance'
 
 export interface ExportBomItem extends PaletteColor {
@@ -9,9 +9,6 @@ export interface ExportSheetLabels {
   title: string
   summary: string
   preview: string
-  layout: string
-  bom: string
-  emptyBom: string
 }
 
 export interface ExportSheetOptions {
@@ -23,6 +20,7 @@ export interface ExportSheetOptions {
   beadSize: string
   totalBeads: number
   includeGuides: boolean
+  beadShape: BeadShape
   labels: ExportSheetLabels
 }
 
@@ -94,6 +92,7 @@ function drawText(
 ) {
   ctx.fillStyle = fillStyle
   ctx.font = font
+  ctx.textAlign = 'left'
   ctx.fillText(text, x, y)
 }
 
@@ -109,6 +108,7 @@ function drawWrappedText(
 ) {
   ctx.fillStyle = fillStyle
   ctx.font = font
+  ctx.textAlign = 'left'
 
   const words = text.split(/\s+/)
   const lines: string[] = []
@@ -143,7 +143,8 @@ function drawGrid(
   originX: number,
   originY: number,
   cellSize: number,
-  includeGuides: boolean
+  includeGuides: boolean,
+  beadShape: BeadShape = 'square'
 ) {
   const gridHeight = grid.length
   const gridWidth = grid[0]?.length ?? 0
@@ -161,15 +162,30 @@ function drawGrid(
       if (!color) continue
 
       ctx.fillStyle = color.hex
-      ctx.fillRect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize)
-      
+
+      const px = originX + x * cellSize
+      const py = originY + y * cellSize
+
+      if (beadShape === 'round') {
+        const radius = (cellSize - 2) / 2
+        ctx.beginPath()
+        ctx.arc(px + cellSize / 2, py + cellSize / 2, radius, 0, Math.PI * 2)
+        ctx.fill()
+      } else {
+        const radius = Math.max(2, cellSize * 0.15)
+        ctx.beginPath()
+        ctx.roundRect(px + 1, py + 1, cellSize - 2, cellSize - 2, radius)
+        ctx.fill()
+      }
+
       // Draw bead name if cell is large enough (threshold: 12px)
       if (cellSize >= 12) {
         ctx.fillStyle = getTextColorForBackground(color.hex)
         ctx.font = `${Math.max(6, cellSize * 0.35)}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(color.id, originX + x * cellSize + cellSize / 2, originY + y * cellSize + cellSize / 2)
+        ctx.fillText(color.id, px + cellSize / 2, py + cellSize / 2)
+        ctx.textBaseline = 'alphabetic'
       }
     }
   }
@@ -193,114 +209,23 @@ function drawGrid(
   }
 }
 
-function drawLayoutAxes(
-  ctx: CanvasRenderingContext2D,
-  gridWidth: number,
-  gridHeight: number,
-  originX: number,
-  originY: number,
-  cellSize: number
-) {
-  const indexStep = getIndexStep(gridWidth, gridHeight)
-
-  ctx.fillStyle = TEXT_SECONDARY
-  ctx.font = '500 12px Inter, system-ui, sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  for (let x = 0; x < gridWidth; x += indexStep) {
-    ctx.fillText(String(x + 1), originX + x * cellSize + cellSize / 2, originY - 12)
-  }
-
-  if ((gridWidth - 1) % indexStep !== 0) {
-    ctx.fillText(String(gridWidth), originX + (gridWidth - 1) * cellSize + cellSize / 2, originY - 12)
-  }
-
-  ctx.textAlign = 'right'
-  for (let y = 0; y < gridHeight; y += indexStep) {
-    ctx.fillText(String(y + 1), originX - 8, originY + y * cellSize + cellSize / 2)
-  }
-
-  if ((gridHeight - 1) % indexStep !== 0) {
-    ctx.fillText(String(gridHeight), originX - 8, originY + (gridHeight - 1) * cellSize + cellSize / 2)
-  }
-}
-
-function drawBom(
-  ctx: CanvasRenderingContext2D,
-  bom: ExportBomItem[],
-  x: number,
-  y: number,
-  width: number,
-  labels: ExportSheetLabels
-) {
-  drawText(ctx, labels.bom, x, y)
-
-  if (bom.length === 0) {
-    drawText(ctx, labels.emptyBom, x, y + 28, TEXT_SECONDARY, '500 14px Inter, system-ui, sans-serif')
-    return 54
-  }
-
-  const columnWidth = 240
-  const columns = Math.max(1, Math.floor(width / columnWidth))
-  const rowHeight = 26
-
-  bom.forEach((item, index) => {
-    const column = index % columns
-    const row = Math.floor(index / columns)
-    const itemX = x + column * columnWidth
-    const rowTop = y + 28 + row * rowHeight
-    // Vertical center of the row for consistent swatch + text alignment
-    const rowMidY = rowTop + rowHeight / 2 - 2
-
-    ctx.fillStyle = item.hex
-    ctx.fillRect(itemX, rowMidY - 7, 14, 14)
-    ctx.strokeStyle = GRID_LINE_STRONG
-    ctx.lineWidth = 1
-    ctx.strokeRect(itemX, rowMidY - 7, 14, 14)
-
-    // Use 'middle' baseline for perfect vertical alignment with the swatch
-    ctx.textBaseline = 'middle'
-    drawText(
-      ctx,
-      `${item.id} · ${item.name} × ${item.count}`,
-      itemX + 24,
-      rowMidY,
-      TEXT_PRIMARY,
-      '500 13px Inter, system-ui, sans-serif'
-    )
-    ctx.textBaseline = 'alphabetic'
-  })
-
-  return 28 + Math.ceil(bom.length / columns) * rowHeight
-}
-
 export function createExportSheetCanvas(options: ExportSheetOptions) {
   const grid = composeVisibleGrid(options.layers, options.gridWidth, options.gridHeight)
   const paletteMap = new Map(options.palette.map((item) => [item.id, item]))
   const cellSize = getCellSize(options.gridWidth, options.gridHeight)
   const gridWidthPx = options.gridWidth * cellSize
   const gridHeightPx = options.gridHeight * cellSize
-  const axisOffset = 28
   const padding = 28
-  const gap = 22
-  const panelWidth = Math.max(gridWidthPx, gridWidthPx + axisOffset)
-  const bomColumns = Math.max(1, Math.floor(panelWidth / 240))
-  const bomRows = Math.ceil(Math.max(options.bom.length, 1) / bomColumns)
-  const headerHeight = 74
-  const previewPanelHeight = gridHeightPx + 54
-  const layoutPanelHeight = gridHeightPx + axisOffset + 54
-  const bomHeight = Math.max(86, 52 + bomRows * 26)
-  const canvasWidth = padding * 2 + Math.max(panelWidth, 720)
-  const canvasHeight =
-    padding * 2 + headerHeight + previewPanelHeight + gap + layoutPanelHeight + gap + bomHeight
+  const headerHeight = 64
+  const panelInner = 18
+  const previewPanelHeight = panelInner + 22 + 8 + gridHeightPx + panelInner
+  const canvasWidth = padding * 2 + Math.max(gridWidthPx, 720)
+  const canvasHeight = padding * 2 + headerHeight + previewPanelHeight
 
   const canvas = document.createElement('canvas')
-  // Use 2x pixel ratio for crisp export on retina / high-DPI displays
   const dpr = typeof window !== 'undefined' ? Math.max(2, window.devicePixelRatio || 2) : 2
   canvas.width = canvasWidth * dpr
   canvas.height = canvasHeight * dpr
-  // Keep CSS size at logical dimensions so callers get consistent layout
   canvas.style.width = `${canvasWidth}px`
   canvas.style.height = `${canvasHeight}px`
 
@@ -309,36 +234,33 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
     return canvas
   }
 
-  // Scale all drawing commands by DPR so coordinates stay in logical pixels
   ctx.scale(dpr, dpr)
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'left'
 
   ctx.fillStyle = BACKGROUND
   ctx.fillRect(0, 0, canvasWidth, canvasHeight)
-  ctx.textBaseline = 'alphabetic'
 
+  // Header
   drawText(ctx, options.labels.title, padding, padding + 22, TEXT_PRIMARY, '700 28px Inter, system-ui, sans-serif')
   const summary = `${options.labels.summary}: ${options.gridWidth}×${options.gridHeight} · ${options.beadSize} · ${options.totalBeads}`
   drawWrappedText(ctx, summary, padding, padding + 48, canvasWidth - padding * 2, 18)
 
-  let sectionTop = padding + headerHeight
-
+  // Preview panel
+  const sectionTop = padding + headerHeight
   drawRoundedPanel(ctx, padding, sectionTop, canvasWidth - padding * 2, previewPanelHeight)
-  drawText(ctx, options.labels.preview, padding + 18, sectionTop + 30)
-  drawGrid(ctx, grid, paletteMap, padding + 18, sectionTop + 42, cellSize, options.includeGuides)
-
-  sectionTop += previewPanelHeight + gap
-
-  drawRoundedPanel(ctx, padding, sectionTop, canvasWidth - padding * 2, layoutPanelHeight)
-  drawText(ctx, options.labels.layout, padding + 18, sectionTop + 30)
-  const layoutOriginX = padding + 18 + axisOffset
-  const layoutOriginY = sectionTop + 42 + axisOffset
-  drawGrid(ctx, grid, paletteMap, layoutOriginX, layoutOriginY, cellSize, options.includeGuides)
-  drawLayoutAxes(ctx, options.gridWidth, options.gridHeight, layoutOriginX, layoutOriginY, cellSize)
-
-  sectionTop += layoutPanelHeight + gap
-
-  drawRoundedPanel(ctx, padding, sectionTop, canvasWidth - padding * 2, bomHeight)
-  drawBom(ctx, options.bom, padding + 18, sectionTop + 30, canvasWidth - padding * 2 - 36, options.labels)
+  drawText(ctx, options.labels.preview, padding + panelInner, sectionTop + 26)
+  drawGrid(
+    ctx,
+    grid,
+    paletteMap,
+    padding + panelInner,
+    sectionTop + panelInner + 22 + 8,
+    cellSize,
+    options.includeGuides,
+    options.beadShape
+  )
 
   return canvas
 }
+
