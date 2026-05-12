@@ -25,13 +25,13 @@ export interface ExportSheetOptions {
   labels: ExportSheetLabels
 }
 
-const BACKGROUND = '#020617'
-const PANEL_BACKGROUND = '#0f172a'
-const PANEL_BORDER = '#334155'
-const TEXT_PRIMARY = '#e2e8f0'
-const TEXT_SECONDARY = '#94a3b8'
-const GRID_LINE = 'rgba(148, 163, 184, 0.18)'
-const GRID_LINE_STRONG = 'rgba(148, 163, 184, 0.45)'
+const BACKGROUND = '#f8fafc'
+const PANEL_BACKGROUND = '#ffffff'
+const PANEL_BORDER = '#cbd5e1'
+const TEXT_PRIMARY = '#0f172a'
+const TEXT_SECONDARY = '#64748b'
+const GRID_LINE = 'rgba(100, 116, 139, 0.18)'
+const GRID_LINE_STRONG = 'rgba(100, 116, 139, 0.45)'
 const EMPTY_CELL = '#ffffff'
 
 export function composeVisibleGrid(layers: Layer[], width: number, height: number): GridColor[][] {
@@ -161,6 +161,21 @@ function drawGrid(
 
       ctx.fillStyle = color.hex
       ctx.fillRect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize)
+      
+      // Draw bead name if cell is large enough
+      if (cellSize >= 12) {
+        const isLightColor = color.hex === '#f5f5f5' || color.hex === '#fffacd' || color.hex === '#fffff0' || 
+                             color.hex === '#ffb3d9' || color.hex === '#ffdab9' || color.hex === '#ffcc99' || 
+                             color.hex === '#f5f5dc' || color.hex === '#90ee90' || color.hex === '#87ceeb' ||
+                             color.hex === '#e6e6fa' || color.hex === '#dda0dd' || color.hex === '#d3d3d3' ||
+                             color.hex === '#c0c0c0' || color.hex === '#00ffff' || color.hex === '#40e0d0' ||
+                             color.hex === '#ffff00' || color.hex === '#39ff14'
+        ctx.fillStyle = isLightColor ? '#000000' : '#ffffff'
+        ctx.font = `${Math.max(6, cellSize * 0.35)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(color.id, originX + x * cellSize + cellSize / 2, originY + y * cellSize + cellSize / 2)
+      }
     }
   }
 
