@@ -166,9 +166,13 @@ function startLongPress(clientX: number, clientY: number) {
   }, LONG_PRESS_MS)
 }
 
+function isTouchPointerEvent(event: PointerEvent) {
+  return event.pointerType === 'touch'
+}
+
 function onPointerDown(event: PointerEvent) {
   const canvas = canvasRef.value
-  if (!canvas || event.pointerType === 'touch') return
+  if (!canvas || isTouchPointerEvent(event)) return
 
   canvas.setPointerCapture(event.pointerId)
   lastPointer.value = { x: event.clientX, y: event.clientY }
@@ -183,6 +187,8 @@ function onPointerDown(event: PointerEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (isTouchPointerEvent(event)) return
+
   if (isPanning.value) {
     offsetX.value += event.clientX - lastPointer.value.x
     offsetY.value += event.clientY - lastPointer.value.y

@@ -269,10 +269,12 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
   const padding = 28
   const gap = 22
   const panelWidth = Math.max(gridWidthPx, gridWidthPx + axisOffset)
+  const bomColumns = Math.max(1, Math.floor(panelWidth / 240))
+  const bomRows = Math.ceil(Math.max(options.bom.length, 1) / bomColumns)
   const headerHeight = 74
   const previewPanelHeight = gridHeightPx + 54
   const layoutPanelHeight = gridHeightPx + axisOffset + 54
-  const bomHeight = Math.max(86, 52 + Math.ceil(Math.max(options.bom.length, 1) / Math.max(1, Math.floor(panelWidth / 240))) * 26)
+  const bomHeight = Math.max(86, 52 + bomRows * 26)
   const canvasWidth = padding * 2 + Math.max(panelWidth, 720)
   const canvasHeight =
     padding * 2 + headerHeight + previewPanelHeight + gap + layoutPanelHeight + gap + bomHeight
