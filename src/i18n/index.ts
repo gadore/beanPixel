@@ -21,7 +21,8 @@ export const messages = {
     total: 'Total',
     language: 'Language',
     physicalSize: 'Physical size',
-    pdfPreparing: 'Preparing PDF...'
+    pdfPreparing: 'Preparing PDF...',
+    canvasHint: 'Zoom {zoom}% · Shift+drag to pan · Pinch to zoom · Long press to pick'
   },
   zh: {
     title: 'BeanPixel · 拼豆数字创作平台',
@@ -43,7 +44,8 @@ export const messages = {
     total: '总数',
     language: '语言',
     physicalSize: '物理尺寸',
-    pdfPreparing: '正在生成 PDF...'
+    pdfPreparing: '正在生成 PDF...',
+    canvasHint: '缩放 {zoom}% · Shift+拖动平移 · 双指缩放 · 长按取色'
   }
 }
 
