@@ -27,6 +27,12 @@ const showCustomSize = ref(false)
 // The blob URL is revoked immediately after load; the img element itself holds the pixel data.
 const uploadedImage = ref<HTMLImageElement | null>(null)
 
+// --- Aspect-ratio dialog state ---
+type FitMode = 'stretch' | 'crop' | 'contain'
+const fitDialogVisible = ref(false)
+const fitDialogImg = ref<HTMLImageElement | null>(null)
+const lastFitMode = ref<FitMode>('stretch')
+
 const beadOptions: BeadSize[] = ['5mm', '2.6mm']
 const beadShapeOptions: BeadShape[] = ['square', 'round']
 const languageOptions = ['zh', 'en'] as const
@@ -53,14 +59,36 @@ const shortcutItems = computed(() => [
   { key: 'E', description: t('shortcutExport') }
 ])
 
-async function pixelateImageToGrid(img: HTMLImageElement) {
+async function pixelateImageToGrid(img: HTMLImageElement, fitMode: FitMode = lastFitMode.value) {
   const offscreen = document.createElement('canvas')
   offscreen.width = store.gridWidth
   offscreen.height = store.gridHeight
   const ctx = offscreen.getContext('2d', { willReadFrequently: true })
   if (!ctx) return
 
-  ctx.drawImage(img, 0, 0, store.gridWidth, store.gridHeight)
+  ctx.clearRect(0, 0, store.gridWidth, store.gridHeight)
+
+  if (fitMode === 'stretch') {
+    // Draw image stretched to fill the entire canvas
+    ctx.drawImage(img, 0, 0, store.gridWidth, store.gridHeight)
+  } else if (fitMode === 'crop') {
+    // Centre-crop: take the largest square from the source
+    const srcSize = Math.min(img.naturalWidth, img.naturalHeight)
+    const srcX = (img.naturalWidth - srcSize) / 2
+    const srcY = (img.naturalHeight - srcSize) / 2
+    ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, store.gridWidth, store.gridHeight)
+  } else {
+    // contain: fit the whole image, keep aspect ratio, leave remainder transparent
+    const scaleX = store.gridWidth / img.naturalWidth
+    const scaleY = store.gridHeight / img.naturalHeight
+    const scale = Math.min(scaleX, scaleY)
+    const drawW = img.naturalWidth * scale
+    const drawH = img.naturalHeight * scale
+    const offsetX = (store.gridWidth - drawW) / 2
+    const offsetY = (store.gridHeight - drawH) / 2
+    ctx.drawImage(img, offsetX, offsetY, drawW, drawH)
+  }
+
   const imageData = ctx.getImageData(0, 0, store.gridWidth, store.gridHeight)
 
   store.clearCanvas()
@@ -91,7 +119,7 @@ function applyPresetSize(width: number, height: number) {
   densityHeight.value = height
   store.setDensity(width, height)
   if (uploadedImage.value) {
-    void pixelateImageToGrid(uploadedImage.value)
+    void pixelateImageToGrid(uploadedImage.value, lastFitMode.value)
   }
   showCustomSize.value = false
 }
@@ -99,7 +127,7 @@ function applyPresetSize(width: number, height: number) {
 function applyDensity() {
   store.setDensity(densityWidth.value, densityHeight.value)
   if (uploadedImage.value) {
-    void pixelateImageToGrid(uploadedImage.value)
+    void pixelateImageToGrid(uploadedImage.value, lastFitMode.value)
   }
 }
 
@@ -148,14 +176,32 @@ async function importImage(event: Event) {
     instance.src = imageUrl
   })
 
-  // Store the loaded image for re-pixelation on resolution change
-  uploadedImage.value = img
   // Blob URL can be revoked — the img element retains the decoded pixel data
   URL.revokeObjectURL(imageUrl)
-
-  store.saveUndoSnapshot()
-  await pixelateImageToGrid(img)
   input.value = ''
+
+  const isSquare = img.naturalWidth === img.naturalHeight
+  if (isSquare) {
+    // Square image: skip dialog, always stretch (1:1 so all modes are identical)
+    uploadedImage.value = img
+    store.saveUndoSnapshot()
+    await pixelateImageToGrid(img, 'stretch')
+  } else {
+    // Non-square: show the fit dialog
+    fitDialogImg.value = img
+    fitDialogVisible.value = true
+  }
+}
+
+async function handleFitChoice(mode: FitMode) {
+  const img = fitDialogImg.value
+  if (!img) return
+  lastFitMode.value = mode
+  uploadedImage.value = img
+  fitDialogVisible.value = false
+  fitDialogImg.value = null
+  store.saveUndoSnapshot()
+  await pixelateImageToGrid(img, mode)
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -167,6 +213,14 @@ function isEditableTarget(target: EventTarget | null) {
 
 function onKeydown(event: KeyboardEvent) {
   const key = event.key.toLowerCase()
+
+  // Escape closes the fit dialog if it is open
+  if (event.key === 'Escape' && fitDialogVisible.value) {
+    fitDialogVisible.value = false
+    fitDialogImg.value = null
+    event.preventDefault()
+    return
+  }
 
   // Ctrl/Cmd+Z = undo (skipped for editable targets to preserve native behavior)
   if ((event.ctrlKey || event.metaKey) && key === 'z' && !event.shiftKey) {
@@ -592,4 +646,46 @@ onUnmounted(() => {
       </aside>
     </div>
   </main>
+
+  <!-- Aspect-ratio fit dialog -->
+  <Teleport to="body">
+    <div
+      v-if="fitDialogVisible"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      @click.self="fitDialogVisible = false"
+    >
+      <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl mx-4">
+        <h2 class="text-lg font-bold text-slate-800 mb-1">{{ t('imgFitDialogTitle') }}</h2>
+        <p class="text-sm text-slate-500 mb-5">
+          {{ t('imgFitDialogDesc', { w: fitDialogImg?.naturalWidth ?? 0, h: fitDialogImg?.naturalHeight ?? 0 }) }}
+        </p>
+        <div class="flex flex-col gap-3">
+          <button
+            type="button"
+            class="flex flex-col items-start rounded-xl border-2 border-purple-200 bg-purple-50 px-4 py-3 text-left hover:border-purple-500 hover:bg-purple-100 transition-all"
+            @click="handleFitChoice('crop')"
+          >
+            <span class="font-semibold text-purple-700">✂ {{ t('imgFitCrop') }}</span>
+            <span class="text-xs text-slate-500 mt-0.5">{{ t('imgFitCropDesc') }}</span>
+          </button>
+          <button
+            type="button"
+            class="flex flex-col items-start rounded-xl border-2 border-purple-200 bg-purple-50 px-4 py-3 text-left hover:border-purple-500 hover:bg-purple-100 transition-all"
+            @click="handleFitChoice('stretch')"
+          >
+            <span class="font-semibold text-purple-700">⤢ {{ t('imgFitStretch') }}</span>
+            <span class="text-xs text-slate-500 mt-0.5">{{ t('imgFitStretchDesc') }}</span>
+          </button>
+          <button
+            type="button"
+            class="flex flex-col items-start rounded-xl border-2 border-purple-200 bg-purple-50 px-4 py-3 text-left hover:border-purple-500 hover:bg-purple-100 transition-all"
+            @click="handleFitChoice('contain')"
+          >
+            <span class="font-semibold text-purple-700">☐ {{ t('imgFitContain') }}</span>
+            <span class="text-xs text-slate-500 mt-0.5">{{ t('imgFitContainDesc') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
