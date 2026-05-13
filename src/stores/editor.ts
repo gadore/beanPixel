@@ -9,6 +9,8 @@ const BEAD_MM: Record<BeadSize, number> = {
   '2.6mm': 2.6
 }
 
+const MAX_UNDO_STEPS = 50
+
 function createGrid(width: number, height: number, fill: GridColor = null): GridColor[][] {
   return Array.from({ length: height }, () => Array.from({ length: width }, () => fill))
 }
@@ -19,6 +21,13 @@ function createLayer(name: string, width: number, height: number): Layer {
     name,
     grid: createGrid(width, height)
   }
+}
+
+function cloneLayers(layers: Layer[]): Layer[] {
+  return layers.map((layer) => ({
+    ...layer,
+    grid: layer.grid.map((row) => [...row])
+  }))
 }
 
 export const useEditorStore = defineStore('editor', () => {
@@ -33,6 +42,28 @@ export const useEditorStore = defineStore('editor', () => {
   const selectedPaletteGroup = ref('all')
   const layers = ref<Layer[]>([createLayer('Layer 1', gridWidth.value, gridHeight.value)])
   const activeLayerId = ref(layers.value[0].id)
+
+  // Undo history: each entry is a snapshot of layers
+  const undoStack = ref<Layer[][]>([])
+
+  function saveUndoSnapshot() {
+    undoStack.value.push(cloneLayers(layers.value))
+    if (undoStack.value.length > MAX_UNDO_STEPS) {
+      undoStack.value.shift()
+    }
+  }
+
+  function undo() {
+    const snapshot = undoStack.value.pop()
+    if (snapshot) {
+      layers.value = snapshot
+      if (!layers.value.some((l) => l.id === activeLayerId.value)) {
+        activeLayerId.value = layers.value[0].id
+      }
+    }
+  }
+
+  const canUndo = computed(() => undoStack.value.length > 0)
 
   const activeLayer = computed(
     () => layers.value.find((layer) => layer.id === activeLayerId.value) ?? layers.value[0]
@@ -99,6 +130,7 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   function clearCanvas() {
+    saveUndoSnapshot()
     for (const layer of layers.value) {
       layer.grid = createGrid(gridWidth.value, gridHeight.value)
     }
@@ -164,6 +196,7 @@ export const useEditorStore = defineStore('editor', () => {
     physicalSizeCm,
     bom,
     totalBeads,
+    canUndo,
     selectColor,
     selectPaletteGroup,
     pickColorAt,
@@ -171,6 +204,8 @@ export const useEditorStore = defineStore('editor', () => {
     clearCanvas,
     setDensity,
     addLayer,
-    removeLayer
+    removeLayer,
+    undo,
+    saveUndoSnapshot
   }
 })

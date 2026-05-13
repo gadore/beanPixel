@@ -34,6 +34,7 @@ export const messages = {
     shortcutAddLayer: 'Add a new layer',
     shortcutClear: 'Clear the canvas',
     shortcutExport: 'Export image (PNG)',
+    shortcutUndo: 'Undo last stroke',
     canvasHint: 'Zoom {zoom}% · Shift+drag to pan · Pinch to zoom · Long press to pick',
     beadShape: 'Bead shape',
     round: 'Round',
@@ -49,7 +50,8 @@ export const messages = {
     tabPalette: 'Palette',
     tabBOM: 'BOM',
     tabShortcuts: 'Shortcuts',
-    selectedColorId: 'Selected'
+    selectedColorId: 'Selected',
+    undo: 'Undo'
   },
   zh: {
     title: 'BeanPixel · 拼豆数字创作平台',
@@ -84,6 +86,7 @@ export const messages = {
     shortcutAddLayer: '新增图层',
     shortcutClear: '清空画布',
     shortcutExport: '导出图片（PNG）',
+    shortcutUndo: '撤回上一步',
     canvasHint: '缩放 {zoom}% · Shift+拖动平移 · 双指缩放 · 长按取色',
     beadShape: '豆子形状',
     round: '圆形',
@@ -99,7 +102,8 @@ export const messages = {
     tabPalette: '色板',
     tabBOM: '物料清单',
     tabShortcuts: '快捷信息',
-    selectedColorId: '已选择'
+    selectedColorId: '已选择',
+    undo: '撤回'
   }
 }
 

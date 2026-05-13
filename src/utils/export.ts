@@ -218,9 +218,23 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
   const padding = 28
   const headerHeight = 64
   const panelInner = 18
+
+  // Canvas content width (panel inner area width)
+  const contentWidth = Math.max(gridWidthPx, 720)
+  const canvasWidth = padding * 2 + contentWidth
+
+  // BOM section
+  const bomItemHeight = 26
+  const bomColumns = 3
+  const bomRowCount = Math.ceil(options.bom.length / bomColumns)
+  const bomSectionHeight = options.bom.length > 0
+    ? panelInner + 24 + 8 + bomRowCount * bomItemHeight + panelInner
+    : 0
+
+  // Preview panel uses clamped grid width so grid never overflows
   const previewPanelHeight = panelInner + 22 + 8 + gridHeightPx + panelInner
-  const canvasWidth = padding * 2 + Math.max(gridWidthPx, 720)
-  const canvasHeight = padding * 2 + headerHeight + previewPanelHeight
+
+  const canvasHeight = padding * 2 + headerHeight + previewPanelHeight + (options.bom.length > 0 ? 12 : 0) + bomSectionHeight
 
   const canvas = document.createElement('canvas')
   const dpr = typeof window !== 'undefined' ? Math.max(2, window.devicePixelRatio || 2) : 2
@@ -250,16 +264,75 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
   const sectionTop = padding + headerHeight
   drawRoundedPanel(ctx, padding, sectionTop, canvasWidth - padding * 2, previewPanelHeight)
   drawText(ctx, options.labels.preview, padding + panelInner, sectionTop + 26)
-  drawGrid(
-    ctx,
-    grid,
-    paletteMap,
-    padding + panelInner,
-    sectionTop + panelInner + 22 + 8,
-    cellSize,
-    options.includeGuides,
-    options.beadShape
-  )
+
+  // Clip grid drawing to panel inner area so it never overflows the border
+  const gridOriginX = padding + panelInner
+  const gridOriginY = sectionTop + panelInner + 22 + 8
+  const panelInnerWidth = contentWidth - panelInner * 2
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(gridOriginX, gridOriginY, panelInnerWidth, gridHeightPx)
+  ctx.clip()
+
+  // Scale grid horizontally if it's wider than the available space
+  if (gridWidthPx > panelInnerWidth) {
+    const scaleX = panelInnerWidth / gridWidthPx
+    ctx.save()
+    ctx.scale(scaleX, 1)
+    drawGrid(ctx, grid, paletteMap, gridOriginX / scaleX, gridOriginY, cellSize, options.includeGuides, options.beadShape)
+    ctx.restore()
+  } else {
+    drawGrid(ctx, grid, paletteMap, gridOriginX, gridOriginY, cellSize, options.includeGuides, options.beadShape)
+  }
+  ctx.restore()
+
+  // BOM section
+  if (options.bom.length > 0) {
+    const bomTop = sectionTop + previewPanelHeight + 12
+    drawRoundedPanel(ctx, padding, bomTop, canvasWidth - padding * 2, bomSectionHeight)
+    drawText(ctx, options.labels.summary + ' BOM', padding + panelInner, bomTop + 26)
+
+    const colWidth = (contentWidth - panelInner * 2) / bomColumns
+    options.bom.forEach((item, index) => {
+      const col = index % bomColumns
+      const row = Math.floor(index / bomColumns)
+      const itemX = padding + panelInner + col * colWidth
+      const itemY = bomTop + panelInner + 24 + 8 + row * bomItemHeight
+
+      // Color swatch
+      const swatchSize = 16
+      ctx.fillStyle = item.hex
+      ctx.beginPath()
+      ctx.arc(itemX + swatchSize / 2, itemY - swatchSize / 2 + 2, swatchSize / 2, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = PANEL_BORDER
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      // ID + name + count
+      const textX = itemX + swatchSize + 6
+      ctx.fillStyle = TEXT_PRIMARY
+      ctx.font = '600 12px Inter, system-ui, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText(item.id, textX, itemY)
+
+      ctx.fillStyle = TEXT_SECONDARY
+      ctx.font = '400 11px Inter, system-ui, sans-serif'
+      const nameMaxWidth = colWidth - swatchSize - 6 - 36
+      const nameWidth = ctx.measureText(item.name).width
+      const name = nameWidth > nameMaxWidth
+        ? item.name.slice(0, Math.floor(item.name.length * nameMaxWidth / nameWidth) - 1) + '…'
+        : item.name
+      ctx.fillText(name, textX + 34, itemY)
+
+      ctx.fillStyle = TEXT_PRIMARY
+      ctx.font = '600 12px Inter, system-ui, sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillText(`×${item.count}`, itemX + colWidth - 4, itemY)
+      ctx.textAlign = 'left'
+    })
+  }
 
   return canvas
 }

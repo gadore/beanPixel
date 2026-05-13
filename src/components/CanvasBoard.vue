@@ -41,7 +41,7 @@ let pinchState: {
 
 // Fallback container dimensions used before the ResizeObserver fires on first mount
 const FALLBACK_CONTAINER_W = 700
-const FALLBACK_CONTAINER_H = 460
+const FALLBACK_CONTAINER_H = 500
 
 // Base cell size that fits the grid snugly in the container, multiplied by user zoom scale
 const cellSize = computed(() => {
@@ -227,6 +227,9 @@ function onPointerDown(event: PointerEvent) {
   }
 
   isDrawing.value = true
+  if (props.mode === 'paint' || props.mode === 'erase') {
+    store.saveUndoSnapshot()
+  }
   applyAction(event.clientX, event.clientY)
 }
 
@@ -317,6 +320,9 @@ function onTouchStart(event: TouchEvent) {
 
   touchMoved.value = false
   lastPointer.value = { x: touch.clientX, y: touch.clientY }
+  if (props.mode === 'paint' || props.mode === 'erase') {
+    store.saveUndoSnapshot()
+  }
   startLongPress(touch.clientX, touch.clientY)
 }
 
@@ -438,7 +444,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative h-[70vh] min-h-[460px] w-full overflow-hidden rounded-xl border border-slate-300 bg-slate-50">
+  <div class="relative h-full min-h-0 w-full overflow-hidden rounded-xl border border-slate-300 bg-slate-50">
     <canvas
       ref="canvasRef"
       class="h-full w-full touch-none"
