@@ -51,7 +51,15 @@ export const messages = {
     tabBOM: 'BOM',
     tabShortcuts: 'Shortcuts',
     selectedColorId: 'Selected',
-    undo: 'Undo'
+    undo: 'Undo',
+    imgFitDialogTitle: 'Image is not square',
+    imgFitDialogDesc: 'The image you imported is {w}×{h}. How should it be fitted onto the canvas?',
+    imgFitCrop: 'Crop to square',
+    imgFitCropDesc: 'Centre-crop the image to a square before mapping',
+    imgFitStretch: 'Stretch to fill',
+    imgFitStretchDesc: 'Stretch the image to fill the entire canvas',
+    imgFitContain: 'Keep ratio (letterbox)',
+    imgFitContainDesc: 'Fit the full image inside the canvas; empty cells get no bead'
   },
   zh: {
     title: 'BeanPixel · 拼豆数字创作平台',
@@ -103,7 +111,15 @@ export const messages = {
     tabBOM: '物料清单',
     tabShortcuts: '快捷信息',
     selectedColorId: '已选择',
-    undo: '撤回'
+    undo: '撤回',
+    imgFitDialogTitle: '图片不是正方形',
+    imgFitDialogDesc: '导入的图片尺寸为 {w}×{h}，请选择填充方式：',
+    imgFitCrop: '裁切为正方形',
+    imgFitCropDesc: '居中裁切，取最大正方形区域',
+    imgFitStretch: '拉伸填满画布',
+    imgFitStretchDesc: '忽略比例，强制拉伸铺满整个画布',
+    imgFitContain: '保持原比例（空白留空）',
+    imgFitContainDesc: '等比缩放放入画布，空白区域不放置豆子'
   }
 }
 
