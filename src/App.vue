@@ -47,6 +47,7 @@ const shortcutItems = computed(() => [
   { key: 'I', description: t('shortcutPick') },
   { key: 'R', description: t('shortcutErase') },
   { key: 'G', description: t('shortcutToggleGrid') },
+  { key: 'Ctrl+Z', description: t('shortcutUndo') },
   { key: 'Shift+L', description: t('shortcutAddLayer') },
   { key: 'Shift+C', description: t('shortcutClear') },
   { key: 'E', description: t('shortcutExport') }
@@ -152,6 +153,7 @@ async function importImage(event: Event) {
   // Blob URL can be revoked — the img element retains the decoded pixel data
   URL.revokeObjectURL(imageUrl)
 
+  store.saveUndoSnapshot()
   await pixelateImageToGrid(img)
   input.value = ''
 }
@@ -164,10 +166,19 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  const key = event.key.toLowerCase()
+
+  // Ctrl/Cmd+Z = undo (works even in editable fields? No, skip only for editable targets)
+  if ((event.ctrlKey || event.metaKey) && key === 'z' && !event.shiftKey) {
+    if (!isEditableTarget(event.target)) {
+      store.undo()
+      event.preventDefault()
+    }
+    return
+  }
+
   const hasUnsupportedModifier = event.ctrlKey || event.metaKey || event.altKey
   if (isEditableTarget(event.target) || hasUnsupportedModifier) return
-
-  const key = event.key.toLowerCase()
 
   if (key === 'b') {
     mode.value = 'paint'
@@ -221,10 +232,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-    <div class="mx-auto grid max-w-[1400px] gap-4 p-4 lg:grid-cols-[1fr_360px]">
-      <section class="space-y-3 rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
-        <header class="space-y-1">
+  <main class="h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div class="mx-auto grid h-full max-w-[1400px] gap-4 p-4 lg:grid-cols-[1fr_360px]">
+      <!-- Left: workspace, fixed height -->
+      <section class="flex min-h-0 flex-col space-y-3 rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg overflow-hidden">
+        <header class="shrink-0 space-y-1">
           <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
             {{ t('title') }}
           </h1>
@@ -234,8 +246,29 @@ onUnmounted(() => {
           </p>
         </header>
 
-        <TabGroup :selectedIndex="workspaceTab" @change="workspaceTab = $event">
-          <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1">
+        <!-- Workspace toolbar: import image, undo, export -->
+        <div class="shrink-0 flex flex-wrap items-center gap-2">
+          <label class="cursor-pointer rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-3 py-1.5 text-xs font-medium text-white shadow-md hover:opacity-90 transition-opacity">
+            📂 {{ t('importImage') }}
+            <input class="hidden" type="file" accept="image/*" @change="importImage" />
+          </label>
+          <button
+            class="rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm transition-all"
+            :class="store.canUndo
+              ? 'bg-purple-50 border border-purple-300 text-purple-700 hover:bg-purple-100'
+              : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'"
+            :disabled="!store.canUndo"
+            @click="store.undo()"
+          >
+            ↩ {{ t('undo') }}
+          </button>
+          <button class="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-medium text-white shadow-md hover:opacity-90 transition-opacity" @click="exportPng">
+            ⬇ {{ t('exportPng') }}
+          </button>
+        </div>
+
+        <TabGroup :selectedIndex="workspaceTab" @change="workspaceTab = $event" class="flex min-h-0 flex-col flex-1">
+          <TabList class="shrink-0 flex space-x-1 rounded-xl bg-purple-100 p-1">
             <Tab v-slot="{ selected }" class="w-full focus:outline-none">
               <span
                 class="block w-full rounded-lg py-2.5 text-sm font-semibold leading-5 text-center transition-all"
@@ -258,20 +291,21 @@ onUnmounted(() => {
             </Tab>
           </TabList>
 
-          <TabPanels class="mt-2">
-            <TabPanel>
+          <TabPanels class="mt-2 flex-1 min-h-0">
+            <TabPanel class="h-full">
               <CanvasBoard :mode="mode" />
             </TabPanel>
-            <TabPanel>
+            <TabPanel class="h-full">
               <ThreePreview />
             </TabPanel>
           </TabPanels>
         </TabGroup>
       </section>
 
-      <aside class="space-y-4">
+      <!-- Right: sidebar, independent scroll -->
+      <aside class="flex min-h-0 flex-col gap-4 overflow-y-auto">
         <!-- Top panel: Controls, Palette, Shortcuts -->
-        <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
+        <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg shrink-0">
           <TabGroup :selectedIndex="topSidebarTab" @change="topSidebarTab = $event">
             <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1 mb-3">
               <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">
@@ -425,15 +459,8 @@ onUnmounted(() => {
                   <button class="rounded-lg bg-purple-500 text-white px-2 text-xs shadow-md" @click="applyDensity">OK</button>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
-                  <label class="cursor-pointer rounded-lg bg-purple-50 px-2 py-1 text-center text-xs border border-purple-200 hover:bg-purple-100">
-                    {{ t('importImage') }}
-                    <input class="hidden" type="file" accept="image/*" @change="importImage" />
-                  </label>
-                  <button class="rounded-lg bg-purple-50 px-2 py-1 text-xs border border-purple-200 hover:bg-purple-100" @click="store.clearCanvas">{{ t('clear') }}</button>
-                  <button class="col-span-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-2 py-1 text-xs font-medium text-white shadow-md" @click="exportPng">
-                    {{ t('exportPng') }}
-                  </button>
+                <div class="flex gap-2">
+                  <button class="flex-1 rounded-lg bg-purple-50 px-2 py-1 text-xs border border-purple-200 hover:bg-purple-100" @click="store.clearCanvas">{{ t('clear') }}</button>
                 </div>
 
                 <p v-if="store.isolatedBeads.length > 0" class="mt-3 rounded-lg bg-red-50 border border-red-200 p-2 text-xs text-red-600">
@@ -459,11 +486,20 @@ onUnmounted(() => {
                       v-for="color in store.filteredPalette"
                       :key="color.id"
                       :title="`${color.id} ${color.name}`"
-                      class="h-10 rounded-lg border-2 transition-all"
-                      :class="store.selectedColorId === color.id ? 'border-purple-600 ring-2 ring-purple-400 scale-110' : 'border-purple-200 hover:border-purple-400'"
-                      :style="{ backgroundColor: color.hex }"
+                      class="relative flex flex-col items-center gap-0.5"
                       @click="store.selectColor(color.id)"
-                    />
+                    >
+                      <!-- Round swatch -->
+                      <span
+                        class="block h-9 w-9 rounded-full border-2 transition-all"
+                        :class="store.selectedColorId === color.id
+                          ? 'border-purple-600 ring-2 ring-purple-400 ring-offset-1'
+                          : 'border-slate-300 hover:border-purple-400'"
+                        :style="{ backgroundColor: color.hex }"
+                      />
+                      <!-- Color ID label -->
+                      <span class="text-[9px] leading-tight text-slate-500 w-full text-center truncate">{{ color.id }}</span>
+                    </button>
                   </div>
                   <p class="text-xs text-slate-600">{{ t('selectedColorId') }}: {{ store.selectedColorId }}</p>
                 </div>
@@ -485,7 +521,7 @@ onUnmounted(() => {
         </section>
 
         <!-- Bottom panel: BOM, Layers -->
-        <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg">
+        <section class="rounded-2xl border border-purple-200 bg-white/80 backdrop-blur-sm p-4 shadow-lg shrink-0">
           <TabGroup :selectedIndex="bottomSidebarTab" @change="bottomSidebarTab = $event">
             <TabList class="flex space-x-1 rounded-xl bg-purple-100 p-1 mb-3">
               <Tab v-slot="{ selected }" class="flex-1 focus:outline-none">

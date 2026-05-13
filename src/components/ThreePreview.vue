@@ -127,14 +127,19 @@ onMounted(() => {
   controls.maxDistance = 50
   controls.maxPolarAngle = Math.PI / 2
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6)
+  const ambient = new THREE.AmbientLight(0xffffff, 1.2)
   ambient.userData.keep = true
   scene.add(ambient)
 
-  const directional = new THREE.DirectionalLight(0xffffff, 0.8)
+  const directional = new THREE.DirectionalLight(0xffffff, 1.8)
   directional.position.set(8, 12, 6)
   directional.userData.keep = true
   scene.add(directional)
+
+  const fill = new THREE.DirectionalLight(0xffffff, 0.6)
+  fill.position.set(-6, 4, -8)
+  fill.userData.keep = true
+  scene.add(fill)
 
   buildScene()
   render()
@@ -171,5 +176,5 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="containerRef" class="h-[70vh] min-h-[460px] w-full overflow-hidden rounded-xl border border-slate-300"></div>
+  <div ref="containerRef" class="h-full min-h-0 w-full overflow-hidden rounded-xl border border-slate-300"></div>
 </template>
