@@ -13,6 +13,9 @@ let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
 let frameId = 0
 
+// Centre-to-centre distance between adjacent beads in Three.js world units
+const BEAD_PITCH = 0.44
+
 // Cache one SpriteMaterial per unique color ID to avoid re-creating textures
 const labelMaterialCache = new Map<string, THREE.SpriteMaterial>()
 
@@ -70,9 +73,9 @@ function buildScene() {
         const material = new THREE.MeshStandardMaterial({ color: color.hex, roughness: 0.6 })
         const bead = new THREE.Mesh(geometry, material)
 
-        const posX = x * 0.44 - (store.gridWidth * 0.44) / 2
+        const posX = x * BEAD_PITCH - (store.gridWidth * BEAD_PITCH) / 2
         const posY = layerIndex * 0.25
-        const posZ = y * 0.44 - (store.gridHeight * 0.44) / 2
+        const posZ = y * BEAD_PITCH - (store.gridHeight * BEAD_PITCH) / 2
 
         bead.position.set(posX, posY, posZ)
         scene.add(bead)
@@ -86,6 +89,25 @@ function buildScene() {
       }
     }
   }
+}
+
+// Compute a camera position and maxDistance that fits the current grid size.
+// Called on mount and whenever grid dimensions change.
+function resetCamera() {
+  if (!camera || !controls) return
+  // Total world-space extent of the longest axis
+  const span = Math.max(store.gridWidth, store.gridHeight) * BEAD_PITCH
+  // At FOV=45° the half-height visible at distance d is d·tan(22.5°)≈0.414d.
+  // We want the half-diagonal (span·√2/2) to fit inside, so d ≈ span·1.6 gives
+  // a comfortable margin.  The camera is tilted at ~35° elevation and 35° azimuth.
+  const dist = span * 1.6
+  camera.position.set(dist * 0.55, dist * 0.55, dist * 0.75)
+  camera.lookAt(0, 0, 0)
+  // Allow zooming out to 3.5× span so the user can always frame the full canvas,
+  // and zooming in to 5% of span for close inspection.
+  controls.maxDistance = span * 3.5
+  controls.minDistance = Math.max(1, span * 0.05)
+  controls.update()
 }
 
 function render() {
@@ -115,17 +137,16 @@ onMounted(() => {
   scene = new THREE.Scene()
   scene.background = new THREE.Color('#f8fafc')
 
-  camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000)
-  camera.position.set(8, 8, 10)
+  camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 2000)
   camera.lookAt(0, 0, 0)
-  
+
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enableDamping = true
   controls.dampingFactor = 0.05
   controls.screenSpacePanning = false
-  controls.minDistance = 3
-  controls.maxDistance = 50
   controls.maxPolarAngle = Math.PI / 2
+
+  resetCamera()
 
   const ambient = new THREE.AmbientLight(0xffffff, 1.2)
   ambient.userData.keep = true
@@ -153,6 +174,14 @@ watch(
     buildScene()
   },
   { deep: true }
+)
+
+// Reset camera position/limits when the canvas size changes
+watch(
+  () => [store.gridWidth, store.gridHeight],
+  () => {
+    resetCamera()
+  }
 )
 
 watch(() => store.showBeadNames, () => {
