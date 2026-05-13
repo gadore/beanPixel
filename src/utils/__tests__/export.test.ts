@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composeVisibleGrid } from '../export'
+import { composeVisibleGrid, getBomColumnCount } from '../export'
 
 describe('composeVisibleGrid', () => {
   it('keeps lower layer colors when upper layers are empty', () => {
@@ -43,5 +43,10 @@ describe('composeVisibleGrid', () => {
     ]
 
     expect(composeVisibleGrid(layers, 1, 1)).toEqual([['B02']])
+  })
+
+  it('uses a denser BOM layout when the export sheet has room', () => {
+    expect(getBomColumnCount(720)).toBe(5)
+    expect(getBomColumnCount(360)).toBe(3)
   })
 })

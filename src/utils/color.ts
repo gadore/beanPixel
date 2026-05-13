@@ -6,6 +6,10 @@ interface LabColor {
   b: number
 }
 
+function getLabChroma(color: LabColor) {
+  return Math.hypot(color.a, color.b)
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '')
   const normalized = clean.length === 3 ? clean.split('').map((ch) => `${ch}${ch}`).join('') : clean
@@ -116,11 +120,20 @@ export function deltaE2000(lab1: LabColor, lab2: LabColor): number {
 export function nearestPaletteColor(hex: string, palette: PaletteColor[]): PaletteColor {
   const [r, g, b] = hexToRgb(hex)
   const sourceLab = rgbToLab(r, g, b)
+  const sourceChroma = getLabChroma(sourceLab)
 
   return palette.reduce(
     (best, color) => {
       const [pr, pg, pb] = hexToRgb(color.hex)
-      const distance = deltaE2000(sourceLab, rgbToLab(pr, pg, pb))
+      const candidateLab = rgbToLab(pr, pg, pb)
+      const candidateChroma = getLabChroma(candidateLab)
+
+      let distance = deltaE2000(sourceLab, candidateLab)
+
+      if (sourceChroma > 6 && candidateChroma < 6) {
+        distance += (sourceChroma - candidateChroma) * 0.7
+      }
+
       return distance < best.distance ? { color, distance } : best
     },
     { color: palette[0], distance: Number.POSITIVE_INFINITY }

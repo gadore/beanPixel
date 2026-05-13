@@ -66,6 +66,10 @@ function getIndexStep(gridWidth: number, gridHeight: number) {
   return 16
 }
 
+export function getBomColumnCount(contentWidth: number) {
+  return clamp(Math.floor(contentWidth / 140), 3, 5)
+}
+
 function drawRoundedPanel(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -224,11 +228,11 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
   const canvasWidth = padding * 2 + contentWidth
 
   // BOM section
-  const bomItemHeight = 26
-  const bomColumns = 3
+  const bomItemHeight = 34
+  const bomColumns = getBomColumnCount(contentWidth)
   const bomRowCount = Math.ceil(options.bom.length / bomColumns)
   const bomSectionHeight = options.bom.length > 0
-    ? panelInner + 24 + 8 + bomRowCount * bomItemHeight + panelInner
+    ? panelInner + 24 + 12 + bomRowCount * bomItemHeight + panelInner
     : 0
 
   // Preview panel uses clamped grid width so grid never overflows
@@ -298,42 +302,37 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
       const col = index % bomColumns
       const row = Math.floor(index / bomColumns)
       const itemX = padding + panelInner + col * colWidth
-      const itemY = bomTop + panelInner + 24 + 8 + row * bomItemHeight
+      const itemY = bomTop + panelInner + 24 + 12 + row * bomItemHeight
 
-      // Color swatch
-      const swatchSize = 16
+      const swatchSize = 24
+      const swatchCenterX = itemX + swatchSize / 2
+      const swatchCenterY = itemY + swatchSize / 2
       ctx.fillStyle = item.hex
       ctx.beginPath()
-      ctx.arc(itemX + swatchSize / 2, itemY - swatchSize / 2 + 2, swatchSize / 2, 0, Math.PI * 2)
+      ctx.arc(swatchCenterX, swatchCenterY, swatchSize / 2, 0, Math.PI * 2)
       ctx.fill()
       ctx.strokeStyle = PANEL_BORDER
       ctx.lineWidth = 1
       ctx.stroke()
 
-      // ID + name + count
-      const textX = itemX + swatchSize + 6
-      ctx.fillStyle = TEXT_PRIMARY
-      ctx.font = '600 12px Inter, system-ui, sans-serif'
-      ctx.textAlign = 'left'
-      ctx.fillText(item.id, textX, itemY)
+      ctx.font = '700 10px Inter, system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.lineWidth = 3
+      ctx.strokeStyle = '#ffffff'
+      ctx.strokeText(item.id, swatchCenterX, swatchCenterY)
+      ctx.fillStyle = '#000000'
+      ctx.fillText(item.id, swatchCenterX, swatchCenterY)
 
-      ctx.fillStyle = TEXT_SECONDARY
-      ctx.font = '400 11px Inter, system-ui, sans-serif'
-      const nameMaxWidth = colWidth - swatchSize - 6 - 36
-      const nameWidth = ctx.measureText(item.name).width
-      const name = nameWidth > nameMaxWidth
-        ? item.name.slice(0, Math.floor(item.name.length * nameMaxWidth / nameWidth) - 1) + '…'
-        : item.name
-      ctx.fillText(name, textX + 34, itemY)
-
+      const textX = itemX + swatchSize + 8
       ctx.fillStyle = TEXT_PRIMARY
-      ctx.font = '600 12px Inter, system-ui, sans-serif'
-      ctx.textAlign = 'right'
-      ctx.fillText(`×${item.count}`, itemX + colWidth - 4, itemY)
+      ctx.font = '600 14px Inter, system-ui, sans-serif'
       ctx.textAlign = 'left'
+      ctx.fillText(`×${item.count}`, textX, swatchCenterY)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
     })
   }
 
   return canvas
 }
-
