@@ -267,7 +267,7 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <TabGroup :selectedIndex="workspaceTab" @change="workspaceTab = $event" class="flex min-h-0 flex-col flex-1">
+        <TabGroup as="div" :selectedIndex="workspaceTab" @change="workspaceTab = $event" class="flex min-h-0 flex-col flex-1">
           <TabList class="shrink-0 flex space-x-1 rounded-xl bg-purple-100 p-1">
             <Tab v-slot="{ selected }" class="w-full focus:outline-none">
               <span
