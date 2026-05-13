@@ -102,7 +102,9 @@ export function deltaE2000(lab1: LabColor, lab2: LabColor): number {
   let avgHpp = h1pd + h2pd
   if (c1p * c2p === 0) avgHpp = h1pd + h2pd
   else if (Math.abs(h1pd - h2pd) <= 180) avgHpp = (h1pd + h2pd) / 2
+  // Hue is circular: hues around 0°/360° must wrap forward when their sum is below 360°.
   else if (h1pd + h2pd < 360) avgHpp = (h1pd + h2pd + 360) / 2
+  // Otherwise wrap backward so the average stays on the shortest arc between hues.
   else avgHpp = (h1pd + h2pd - 360) / 2
 
   const t =
@@ -168,6 +170,7 @@ export function dominantRgbFromImageData(
   if (x0 >= x1 || y0 >= y1) return null
 
   const area = (x1 - x0) * (y1 - y0)
+  // Increase stride by the square root of area so the sampled pixel count stays bounded.
   const step = Math.max(1, Math.ceil(Math.sqrt(area / MAX_COLOR_SAMPLES)))
   const buckets = new Map<number, { count: number; r: number; g: number; b: number }>()
 

@@ -102,17 +102,17 @@ async function pixelateImageToGrid(img: HTMLImageElement, fitMode: FitMode = las
           cropY + ((y + 1) * cropSize) / store.gridHeight
         ]
       } else {
-        const dx0 = Math.max(x, containX)
-        const dy0 = Math.max(y, containY)
-        const dx1 = Math.min(x + 1, containX + containW)
-        const dy1 = Math.min(y + 1, containY + containH)
+        const destCellLeft = Math.max(x, containX)
+        const destCellTop = Math.max(y, containY)
+        const destCellRight = Math.min(x + 1, containX + containW)
+        const destCellBottom = Math.min(y + 1, containY + containH)
 
-        if (dx0 < dx1 && dy0 < dy1) {
+        if (destCellLeft < destCellRight && destCellTop < destCellBottom) {
           sampleRect = [
-            (dx0 - containX) / containScale,
-            (dy0 - containY) / containScale,
-            (dx1 - containX) / containScale,
-            (dy1 - containY) / containScale
+            (destCellLeft - containX) / containScale,
+            (destCellTop - containY) / containScale,
+            (destCellRight - containX) / containScale,
+            (destCellBottom - containY) / containScale
           ]
         }
       }
