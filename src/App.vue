@@ -7,7 +7,7 @@ import ThreePreview from './components/ThreePreview.vue'
 import type { BeadShape, BeadSize, ToolMode } from './types'
 import { useEditorStore } from './stores/editor'
 import { PALETTE_GROUPS } from './constants/palette'
-import { nearestPaletteColor } from './utils/color'
+import { dominantRgbFromImageData, nearestPaletteColorFromRgb } from './utils/color'
 import { createExportSheetCanvas } from './utils/export'
 
 const store = useEditorStore()
@@ -18,6 +18,7 @@ const exportIncludeGuides = ref(true)
 const workspaceTab = ref(0) // 0 = 2D Canvas, 1 = 3D Preview
 const topSidebarTab = ref(0)    // 0 = Controls, 1 = Palette, 2 = Shortcuts
 const bottomSidebarTab = ref(0) // 0 = BOM, 1 = Layers
+const appVersion = '0.0.2'
 
 const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
@@ -61,54 +62,72 @@ const shortcutItems = computed(() => [
 
 async function pixelateImageToGrid(img: HTMLImageElement, fitMode: FitMode = lastFitMode.value) {
   const offscreen = document.createElement('canvas')
-  offscreen.width = store.gridWidth
-  offscreen.height = store.gridHeight
+  offscreen.width = img.naturalWidth
+  offscreen.height = img.naturalHeight
   const ctx = offscreen.getContext('2d', { willReadFrequently: true })
   if (!ctx) return
 
-  ctx.clearRect(0, 0, store.gridWidth, store.gridHeight)
+  ctx.clearRect(0, 0, img.naturalWidth, img.naturalHeight)
+  ctx.drawImage(img, 0, 0)
+  const imageData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight)
 
-  if (fitMode === 'stretch') {
-    // Draw image stretched to fill the entire canvas
-    ctx.drawImage(img, 0, 0, store.gridWidth, store.gridHeight)
-  } else if (fitMode === 'crop') {
-    // Centre-crop: take the largest square from the source
-    const srcSize = Math.min(img.naturalWidth, img.naturalHeight)
-    const srcX = (img.naturalWidth - srcSize) / 2
-    const srcY = (img.naturalHeight - srcSize) / 2
-    ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, store.gridWidth, store.gridHeight)
-  } else {
-    // contain: fit the whole image, keep aspect ratio, leave remainder transparent
-    const scaleX = store.gridWidth / img.naturalWidth
-    const scaleY = store.gridHeight / img.naturalHeight
-    const scale = Math.min(scaleX, scaleY)
-    const drawW = img.naturalWidth * scale
-    const drawH = img.naturalHeight * scale
-    const offsetX = (store.gridWidth - drawW) / 2
-    const offsetY = (store.gridHeight - drawH) / 2
-    ctx.drawImage(img, offsetX, offsetY, drawW, drawH)
-  }
-
-  const imageData = ctx.getImageData(0, 0, store.gridWidth, store.gridHeight)
+  const cropSize = Math.min(img.naturalWidth, img.naturalHeight)
+  const cropX = (img.naturalWidth - cropSize) / 2
+  const cropY = (img.naturalHeight - cropSize) / 2
+  const containScale = Math.min(store.gridWidth / img.naturalWidth, store.gridHeight / img.naturalHeight)
+  const containW = img.naturalWidth * containScale
+  const containH = img.naturalHeight * containScale
+  const containX = (store.gridWidth - containW) / 2
+  const containY = (store.gridHeight - containH) / 2
 
   store.clearCanvas()
 
   for (let y = 0; y < store.gridHeight; y += 1) {
     for (let x = 0; x < store.gridWidth; x += 1) {
-      const index = (y * store.gridWidth + x) * 4
-      const alpha = imageData.data[index + 3]
-      if (alpha < 20) {
+      let sampleRect: [number, number, number, number] | null = null
+
+      if (fitMode === 'stretch') {
+        sampleRect = [
+          (x * img.naturalWidth) / store.gridWidth,
+          (y * img.naturalHeight) / store.gridHeight,
+          ((x + 1) * img.naturalWidth) / store.gridWidth,
+          ((y + 1) * img.naturalHeight) / store.gridHeight
+        ]
+      } else if (fitMode === 'crop') {
+        sampleRect = [
+          cropX + (x * cropSize) / store.gridWidth,
+          cropY + (y * cropSize) / store.gridHeight,
+          cropX + ((x + 1) * cropSize) / store.gridWidth,
+          cropY + ((y + 1) * cropSize) / store.gridHeight
+        ]
+      } else {
+        const dx0 = Math.max(x, containX)
+        const dy0 = Math.max(y, containY)
+        const dx1 = Math.min(x + 1, containX + containW)
+        const dy1 = Math.min(y + 1, containY + containH)
+
+        if (dx0 < dx1 && dy0 < dy1) {
+          sampleRect = [
+            (dx0 - containX) / containScale,
+            (dy0 - containY) / containScale,
+            (dx1 - containX) / containScale,
+            (dy1 - containY) / containScale
+          ]
+        }
+      }
+
+      if (!sampleRect) {
         store.paintCell(x, y, null)
         continue
       }
 
-      const hex =
-        '#' +
-        [imageData.data[index], imageData.data[index + 1], imageData.data[index + 2]]
-          .map((channel) => channel.toString(16).padStart(2, '0'))
-          .join('')
+      const dominantRgb = dominantRgbFromImageData(imageData, ...sampleRect)
+      if (!dominantRgb) {
+        store.paintCell(x, y, null)
+        continue
+      }
 
-      const nearest = nearestPaletteColor(hex, store.palette)
+      const nearest = nearestPaletteColorFromRgb(dominantRgb, store.palette)
       store.paintCell(x, y, nearest.id)
     }
   }
@@ -296,7 +315,7 @@ onUnmounted(() => {
           </h1>
           <p class="text-sm text-slate-600">{{ t('subtitle') }}</p>
           <p class="text-xs text-slate-500">
-            {{ t('physicalSize') }}: {{ store.physicalSizeCm.width }}cm × {{ store.physicalSizeCm.height }}cm
+            {{ t('version') }}: v{{ appVersion }} · {{ t('physicalSize') }}: {{ store.physicalSizeCm.width }}cm × {{ store.physicalSizeCm.height }}cm
           </p>
         </header>
 
