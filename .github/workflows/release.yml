@@ -33,15 +33,23 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: npm run build
 
+      - name: Prepare release metadata
+        id: release_meta
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "release_tag=main-release-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "asset_name=beanPixel-main-$short_sha.zip" >> "$GITHUB_OUTPUT"
+
       - name: Archive build artifacts
-        run: zip -r beanPixel-main-${{ github.sha }}.zip dist/
+        run: zip -r "${{ steps.release_meta.outputs.asset_name }}" dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: main-release-${{ github.sha }}
-          name: Main release for ${{ github.sha }}
+          tag_name: ${{ steps.release_meta.outputs.release_tag }}
+          name: Main release for ${{ steps.release_meta.outputs.short_sha }}
           target_commitish: ${{ github.sha }}
           prerelease: true
-          files: beanPixel-main-${{ github.sha }}.zip
+          files: ${{ steps.release_meta.outputs.asset_name }}
           generate_release_notes: true
