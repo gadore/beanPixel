@@ -36,7 +36,7 @@ export const useEditorStore = defineStore('editor', () => {
   const beadSize = ref<BeadSize>('5mm')
   const beadShape = ref<BeadShape>('square')
   const showGrid = ref(true)
-  const showBeadNames = ref(false)
+  const showBeadNames = ref(true)
   const palette = ref(PERLER_PALETTE)
   const selectedColorId = ref(palette.value[0].id)
   const selectedPaletteGroup = ref('all')

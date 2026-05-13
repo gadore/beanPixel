@@ -6,18 +6,27 @@ interface LabColor {
   b: number
 }
 
+export type RgbColor = [number, number, number]
+
+const MIN_ALPHA_THRESHOLD = 20
+const MAX_COLOR_SAMPLES = 4096
+
 function getLabChroma(color: LabColor) {
   return Math.hypot(color.a, color.b)
 }
 
-export function hexToRgb(hex: string): [number, number, number] {
+export function hexToRgb(hex: string): RgbColor {
   const clean = hex.replace('#', '')
   const normalized = clean.length === 3 ? clean.split('').map((ch) => `${ch}${ch}`).join('') : clean
   const int = Number.parseInt(normalized, 16)
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255]
 }
 
-function rgbToXyz(r: number, g: number, b: number): [number, number, number] {
+export function rgbToHex([r, g, b]: RgbColor): string {
+  return `#${[r, g, b].map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`
+}
+
+function rgbToXyz(r: number, g: number, b: number): RgbColor {
   const pivot = (value: number) => {
     const v = value / 255
     return v > 0.04045 ? ((v + 0.055) / 1.055) ** 2.4 : v / 12.92
@@ -93,7 +102,10 @@ export function deltaE2000(lab1: LabColor, lab2: LabColor): number {
   let avgHpp = h1pd + h2pd
   if (c1p * c2p === 0) avgHpp = h1pd + h2pd
   else if (Math.abs(h1pd - h2pd) <= 180) avgHpp = (h1pd + h2pd) / 2
-  else avgHpp = (h1pd + h2pd + 360) / 2
+  // Hue is circular: hues around 0°/360° must wrap forward when their sum is below 360°.
+  else if (h1pd + h2pd < 360) avgHpp = (h1pd + h2pd + 360) / 2
+  // Otherwise wrap backward so the average stays on the shortest arc between hues.
+  else avgHpp = (h1pd + h2pd - 360) / 2
 
   const t =
     1 -
@@ -117,8 +129,7 @@ export function deltaE2000(lab1: LabColor, lab2: LabColor): number {
   )
 }
 
-export function nearestPaletteColor(hex: string, palette: PaletteColor[]): PaletteColor {
-  const [r, g, b] = hexToRgb(hex)
+export function nearestPaletteColorFromRgb([r, g, b]: RgbColor, palette: PaletteColor[]): PaletteColor {
   const sourceLab = rgbToLab(r, g, b)
   const sourceChroma = getLabChroma(sourceLab)
 
@@ -138,4 +149,58 @@ export function nearestPaletteColor(hex: string, palette: PaletteColor[]): Palet
     },
     { color: palette[0], distance: Number.POSITIVE_INFINITY }
   ).color
+}
+
+export function nearestPaletteColor(hex: string, palette: PaletteColor[]): PaletteColor {
+  return nearestPaletteColorFromRgb(hexToRgb(hex), palette)
+}
+
+export function dominantRgbFromImageData(
+  imageData: ImageData,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number
+): RgbColor | null {
+  const x0 = Math.max(0, Math.floor(startX))
+  const y0 = Math.max(0, Math.floor(startY))
+  const x1 = Math.min(imageData.width, Math.ceil(endX))
+  const y1 = Math.min(imageData.height, Math.ceil(endY))
+
+  if (x0 >= x1 || y0 >= y1) return null
+
+  const area = (x1 - x0) * (y1 - y0)
+  // Increase stride by the square root of area so the sampled pixel count stays bounded.
+  const step = Math.max(1, Math.ceil(Math.sqrt(area / MAX_COLOR_SAMPLES)))
+  const buckets = new Map<number, { count: number; r: number; g: number; b: number }>()
+
+  for (let y = y0; y < y1; y += step) {
+    for (let x = x0; x < x1; x += step) {
+      const index = (y * imageData.width + x) * 4
+      const alpha = imageData.data[index + 3]
+      if (alpha < MIN_ALPHA_THRESHOLD) continue
+
+      const r = imageData.data[index]
+      const g = imageData.data[index + 1]
+      const b = imageData.data[index + 2]
+      // Reduce each 8-bit channel to 4 bits, creating a 12-bit bucket key.
+      const bucket = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4)
+      const current = buckets.get(bucket) ?? { count: 0, r: 0, g: 0, b: 0 }
+
+      current.count += 1
+      current.r += r
+      current.g += g
+      current.b += b
+      buckets.set(bucket, current)
+    }
+  }
+
+  let best: { count: number; r: number; g: number; b: number } | null = null
+  for (const bucket of buckets.values()) {
+    if (!best || bucket.count > best.count) {
+      best = bucket
+    }
+  }
+
+  return best ? [best.r / best.count, best.g / best.count, best.b / best.count] : null
 }
