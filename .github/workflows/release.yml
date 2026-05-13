@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -34,10 +34,14 @@ jobs:
         run: npm run build
 
       - name: Archive build artifacts
-        run: zip -r beanPixel-${{ github.ref_name }}.zip dist/
+        run: zip -r beanPixel-main-${{ github.run_number }}.zip dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: beanPixel-${{ github.ref_name }}.zip
+          tag_name: main-release-${{ github.run_number }}
+          name: Main release #${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: beanPixel-main-${{ github.run_number }}.zip
           generate_release_notes: true
