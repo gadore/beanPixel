@@ -168,7 +168,7 @@ function isEditableTarget(target: EventTarget | null) {
 function onKeydown(event: KeyboardEvent) {
   const key = event.key.toLowerCase()
 
-  // Ctrl/Cmd+Z = undo (works even in editable fields? No, skip only for editable targets)
+  // Ctrl/Cmd+Z = undo (skipped for editable targets to preserve native behavior)
   if ((event.ctrlKey || event.metaKey) && key === 'z' && !event.shiftKey) {
     if (!isEditableTarget(event.target)) {
       store.undo()

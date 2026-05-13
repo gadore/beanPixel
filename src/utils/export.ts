@@ -320,8 +320,9 @@ export function createExportSheetCanvas(options: ExportSheetOptions) {
       ctx.fillStyle = TEXT_SECONDARY
       ctx.font = '400 11px Inter, system-ui, sans-serif'
       const nameMaxWidth = colWidth - swatchSize - 6 - 36
-      const name = ctx.measureText(item.name).width > nameMaxWidth
-        ? item.name.slice(0, Math.floor(item.name.length * nameMaxWidth / ctx.measureText(item.name).width) - 1) + '…'
+      const nameWidth = ctx.measureText(item.name).width
+      const name = nameWidth > nameMaxWidth
+        ? item.name.slice(0, Math.floor(item.name.length * nameMaxWidth / nameWidth) - 1) + '…'
         : item.name
       ctx.fillText(name, textX + 34, itemY)
 
