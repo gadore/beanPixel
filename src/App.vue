@@ -9,6 +9,7 @@ import { useEditorStore } from './stores/editor'
 import { PALETTE_GROUPS } from './constants/palette'
 import { dominantRgbFromImageData, nearestPaletteColorFromRgb } from './utils/color'
 import { createExportSheetCanvas } from './utils/export'
+import packageJson from '../package.json'
 
 const store = useEditorStore()
 const { t, locale } = useI18n()
@@ -18,7 +19,7 @@ const exportIncludeGuides = ref(true)
 const workspaceTab = ref(0) // 0 = 2D Canvas, 1 = 3D Preview
 const topSidebarTab = ref(0)    // 0 = Controls, 1 = Palette, 2 = Shortcuts
 const bottomSidebarTab = ref(0) // 0 = BOM, 1 = Layers
-const appVersion = '0.0.2'
+const appVersion = packageJson.version
 
 const densityWidth = ref(store.gridWidth)
 const densityHeight = ref(store.gridHeight)
