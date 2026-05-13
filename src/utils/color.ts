@@ -8,6 +8,9 @@ interface LabColor {
 
 export type RgbColor = [number, number, number]
 
+const MIN_ALPHA_THRESHOLD = 20
+const MAX_COLOR_SAMPLES = 4096
+
 function getLabChroma(color: LabColor) {
   return Math.hypot(color.a, color.b)
 }
@@ -164,20 +167,20 @@ export function dominantRgbFromImageData(
 
   if (x0 >= x1 || y0 >= y1) return null
 
-  const maxSamples = 4096
   const area = (x1 - x0) * (y1 - y0)
-  const step = Math.max(1, Math.ceil(Math.sqrt(area / maxSamples)))
+  const step = Math.max(1, Math.ceil(Math.sqrt(area / MAX_COLOR_SAMPLES)))
   const buckets = new Map<number, { count: number; r: number; g: number; b: number }>()
 
   for (let y = y0; y < y1; y += step) {
     for (let x = x0; x < x1; x += step) {
       const index = (y * imageData.width + x) * 4
       const alpha = imageData.data[index + 3]
-      if (alpha < 20) continue
+      if (alpha < MIN_ALPHA_THRESHOLD) continue
 
       const r = imageData.data[index]
       const g = imageData.data[index + 1]
       const b = imageData.data[index + 2]
+      // Reduce each 8-bit channel to 4 bits, creating a 12-bit bucket key.
       const bucket = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4)
       const current = buckets.get(bucket) ?? { count: 0, r: 0, g: 0, b: 0 }
 
