@@ -35,6 +35,7 @@ jobs:
 
       - name: Prepare release metadata
         id: release_meta
+        shell: bash
         run: |
           short_sha="${GITHUB_SHA::7}"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
@@ -48,7 +49,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_meta.outputs.release_tag }}
-          name: Main release for ${{ steps.release_meta.outputs.short_sha }}
+          name: Main branch prerelease (${{ steps.release_meta.outputs.short_sha }})
           target_commitish: ${{ github.sha }}
           prerelease: true
           files: ${{ steps.release_meta.outputs.asset_name }}
